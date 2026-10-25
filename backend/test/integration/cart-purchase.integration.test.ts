@@ -70,6 +70,7 @@ describe('cart and purchase integration', () => {
     await request(app).post('/api/cart/items').set(bearer(1)).send({ vehicleId: id }).expect(200);
     await pool.query('UPDATE vehicles SET quantity = 0 WHERE id = $1', [id]);
     expect((await request(app).get('/api/cart').set(bearer(1))).body.items).toMatchObject([{ vehicleId: id, available: false, stock: 0 }]);
+    await request(app).post('/api/cart/items').set(bearer(1)).send({ vehicleId: id }).expect(200);
     await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(409);
     await pool.query('UPDATE vehicles SET deleted_at = now() WHERE id = $1', [id]);
     expect((await request(app).get('/api/cart').set(bearer(1))).body.items[0].available).toBe(false);
