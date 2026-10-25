@@ -342,6 +342,31 @@ Checkout requires every cart vehicle exactly once with its current `price` strin
 
 Send a fresh UUID `requestId` for each intended purchase. An exact retry returns the original purchase, including after checkout has emptied the cart. Reusing that key for a different source, vehicle set, or confirmed checkout prices returns `409`. Checkout validates current prices and stock again, locks all selected stock lines in ID order, and commits stock, history, and cart clearing together. A changed price, unavailable item, changed cart, or empty cart returns `409` without a partial sale; errors for unavailable items identify the vehicle ID. Invalid IDs or request bodies return `400`, missing or deleted direct-purchase vehicles return `404`, and missing authentication returns `401`. Zero-stock direct purchases return `409`.
 
+## Favourites and in-app notifications API
+
+Migration `005_create_favourites_and_notifications.sql` adds saved vehicles and recipient-specific notifications. Apply it with `npm run migrate`. Every route below requires `Authorization: Bearer <token>`; ownership and recipients are determined from the authenticated user and database state.
+
+| Method and route | Request | Response |
+|---|---|---|
+| `GET /api/favourites` | None | `{ "favourites": [...] }` |
+| `PUT /api/favourites/:vehicleId` | None | `{ "favourite": {...} }`; repeated saves retain the existing alert preference |
+| `DELETE /api/favourites/:vehicleId` | None | `{ "removed": true }` or `{ "removed": false }` if absent |
+| `PATCH /api/favourites/:vehicleId/notification-preference` | `{ "notifyOnRestock": true }` or `false` | `{ "favourite": {...} }` |
+| `GET /api/notifications?page=1&limit=20` | Optional positive `page` and `limit` (maximum 100) | `{ "notifications": [...], "unreadCount": 0, "pagination": {...} }` |
+| `PATCH /api/notifications/:id/read` | None | `{ "notification": {...} }`; repeated calls preserve the original read timestamp |
+
+Each favourite contains `vehicleId`, `make`, `model`, current `price` (decimal string), `stock`, `available`, `deleted`, `notifyOnRestock`, and `createdAt`. Zero-stock active vehicles can be saved. A saved vehicle remains visible and removable after soft deletion, but a new favourite cannot be created for it. Saving, deleting, and changing the preference do not change stock or erase prior notifications. New favourites default to `notifyOnRestock: false`; the PATCH endpoint requires an existing favourite and a strict JSON boolean.
+
+For example, after `PATCH /api/favourites/<vehicle-id>/notification-preference` with `{"notifyOnRestock":true}`, the response contains `{"favourite":{"vehicleId":"<vehicle-id>","make":"Toyota","model":"Corolla","price":"25000.00","stock":0,"available":false,"deleted":false,"notifyOnRestock":true,"createdAt":"<timestamp>"}}`.
+
+Inbox results are newest first. Each notification contains `id`, `type`, `message`, `vehicleId` (possibly `null`), `createdAt`, `readAt` (initially `null`), and `read`. `pagination` contains `page`, `limit`, `total`, and `totalPages`; `unreadCount` covers the entire inbox, not just the current page. The endpoint supports page-load fetching and polling; it does not deliver email, push, or live socket messages.
+
+For example, `GET /api/notifications?page=1&limit=20` can return `{"notifications":[{"id":"<uuid>","type":"back_in_stock","message":"Toyota Corolla is back in stock","vehicleId":"<uuid>","createdAt":"<timestamp>","readAt":null,"read":false}],"unreadCount":1,"pagination":{"page":1,"limit":20,"total":1,"totalPages":1}}`.
+
+On a successful purchase, stock crossing from above its low-stock threshold to a positive quantity at or below it creates one `low_stock` notification per active admin. A positive-to-zero purchase creates `out_of_stock` notifications for active admins. A zero-to-positive restock creates `back_in_stock` notifications only for active accounts that have favourited that vehicle with the explicit preference enabled. Opening stock creates no alert. Alerts are inserted in the same transaction as the stock change and history record; failed operations roll back both, and successful request-ID retries create no extra alerts.
+
+Unauthenticated requests return `401`; malformed IDs, query parameters, or preference payloads return `400`; unknown vehicles, unsaved favourites for preference changes, and notifications belonging to another user return `404`. A client cannot select a notification recipient or access another user's saved vehicles or inbox.
+
 ## My AI Usage
 
 Codex was used to review the assignment and database design, draft and revise TypeScript/SQL implementation, write Vitest and Supertest tests, run PostgreSQL integration checks, diagnose failures, and document the verified behavior. The original feature commits combined tests and implementation; the later remediation commits record truthful test-first red and green steps without rewriting that history. The project owner still needs to add their personal reflection before submission.

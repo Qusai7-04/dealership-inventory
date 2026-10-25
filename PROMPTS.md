@@ -900,3 +900,339 @@ Do not modify any files inside `frontend/`. At the end, verify and report that t
 Finish with the exact RED/GREEN/REFACTOR commits, the test or behavior covered by each commit, the commands executed and their actual results, migration status, any remaining issues, and the final `git status --short --branch`. Clearly state if anything was skipped and why. Do not push anything to GitHub.
 
 Do not stop after providing an audit or implementation plan. Complete the backend cart and purchase functionality and its verification while preserving the existing repository history.
+
+## Backend favourites and notifications prompt (2026-10-25)
+
+Implement the backend functionality for favourites and targeted in-app notifications in the existing Car Dealership Inventory System. Work directly in `C:\PROJECTS\Dealership Inventory`.
+
+Read `reference-docs/AI_Kata_Car_Dealership_Inventory_System_V2.pdf`, `README.md`, `docs/database-design.md`, `AGENTS.md`, and the current backend implementation before changing anything. Use the actual repository and database design as the source of truth. The cart, direct purchase, checkout, restock, authentication, and authorization functionality already exists, so extend the existing implementation rather than rebuilding or duplicating it.
+
+I am still finalizing the frontend design in Stitch, and the vehicle dataset will be prepared later. This task is strictly BACKEND ONLY. Do not implement the frontend, do not modify any files inside `frontend/`, do not add frontend dependencies, and do not create or import a vehicle dataset. Implement the backend APIs and database behavior that the future frontend can consume.
+
+The main features are a persistent favourites list, an explicit opt-in preference for restock alerts, targeted notifications for inventory events, and authenticated notification listing and read status.
+
+The assignment's TDD requirement is mandatory. Use genuine Red-Green-Refactor cycles for every distinct behavior. Write and run a meaningful failing test first, observe the expected failure, and commit the RED test separately. Implement the smallest correct change, run the relevant tests and commit the GREEN change separately. Refactor only when there is a real improvement to make, with tests remaining green. Do not manufacture bugs to generate RED commits, and do not claim a test failed unless you actually ran it and observed the expected failure.
+
+## 1. Inspect and establish the baseline
+
+Start with the current Git status, branch, recent commit history, existing migrations, actual database schema, backend package scripts, database test helpers, and current implementations of vehicle creation, direct purchase, cart checkout, restocking, and authentication.
+
+Run the existing backend tests and build before modifying anything wherever possible. Record the exact results and distinguish existing failures from regressions introduced by your changes.
+
+The repository has had local commits that have not necessarily been published. Preserve the current local branch and all commits. Do not pull, merge, rebase, reset, squash, amend, force-push, or push anything to GitHub as part of this task. Do not overwrite user changes or revert the repository restructuring.
+
+Inspect the real migration history rather than assuming a specific migration number. Create the next migration based on the migrations that actually exist in this checkout. Never modify the historical meaning of a migration that has already been applied.
+
+Maintain the existing rule that PostgreSQL integration tests require an explicit `TEST_DATABASE_URL` pointing to the dedicated database ending in `_test`. Never silently fall back to the development database, and do not destroy or recreate the development database or Docker volumes.
+
+## 2. Favourites data model
+
+Implement the documented `favourites` table if it does not already exist. Follow the current design and existing SQL conventions.
+
+The table must contain:
+
+- `user_id`, referencing `users.id`.
+- `vehicle_id`, referencing `vehicles.id`.
+- `notify_on_restock`, a non-null boolean defaulting to `false`.
+- `created_at`, using the project's established timestamp convention.
+- A composite primary key on `(user_id, vehicle_id)` to prevent duplicate favourites.
+
+Follow the documented foreign-key deletion policy and existing constraints. Do not physically delete users or vehicles as part of this feature. Vehicle removal remains a soft-delete operation.
+
+Add useful indexes only where justified by the actual queries. In particular, inspect whether an index on `vehicle_id` for opted-in favourites would help the back-in-stock recipient lookup. Avoid redundant indexes.
+
+A favourite is a save-for-later relationship and is independent of a cart. Adding or removing a favourite must never modify stock, create a purchase, add an item to a cart, or reserve inventory.
+
+An active vehicle with zero stock may still be favourited. The inability to purchase a vehicle must not prevent users from saving it for later. A soft-deleted vehicle must not be newly favourited. If an existing favourite refers to a subsequently soft-deleted vehicle, preserve the relationship so the owner can still manage or remove it without physically deleting historical data.
+
+Removing a favourite disables future back-in-stock notifications for that user and vehicle. Previously created notifications must remain in that user's notification history.
+
+## 3. Favourites API
+
+Follow existing route names, authentication, validation, error handling, HTTP status conventions, response formatting, and UUID validation. Inspect for equivalent routes before creating anything. Avoid duplicate endpoints.
+
+Implement the following operations unless equivalent functionality already exists under an established path.
+
+**`GET /api/favourites`**
+
+Return only the authenticated user's saved vehicles. Include the vehicle ID and appropriate vehicle details, current price, current stock, availability status, and the `notifyOnRestock` preference.
+
+A zero-stock active vehicle must remain visible in the favourites response. Do not leak other users' favourite relationships or notification preferences. Keep an existing favourite manageable if its vehicle has since been soft-deleted, and provide enough information for the user to remove it.
+
+**`PUT /api/favourites/:vehicleId`**
+
+Save an active vehicle to the authenticated user's favourites. Make this operation idempotent so saving the same vehicle repeatedly creates only one relationship.
+
+The endpoint must accept active vehicles with zero stock. Reject invalid IDs, nonexistent vehicles, and newly requested favourites for soft-deleted vehicles. It must not change stock or cart contents.
+
+If the vehicle is already favourited, do not reset its existing `notify_on_restock` preference merely because the user saves it again.
+
+New favourites must default `notify_on_restock` to `false`.
+
+**`DELETE /api/favourites/:vehicleId`**
+
+Remove only the authenticated user's favourite relationship for the specified vehicle. A user must not be able to remove another user's favourite by manipulating the vehicle ID or any other request field.
+
+Handle absent favourites consistently with the existing API's conventions. This operation must not change vehicle stock, purchase history, or other users' favourites. It must not delete notifications that were already sent.
+
+**`PATCH /api/favourites/:vehicleId/notification-preference`**
+
+Allow a user to explicitly enable or disable restock notifications for a vehicle they have already favourited. Accept a strict boolean `notifyOnRestock` value and reject malformed values.
+
+Do not create a favourite implicitly through this endpoint. If the user has not saved that vehicle, return the appropriate not-found response. The operation must only update the preference belonging to the authenticated user.
+
+The API must clearly return the saved state and preference. Document the exact route contracts, validation rules, and error responses in the README or the existing API documentation.
+
+## 4. Notifications data model
+
+Implement the documented `notifications` table if it is missing. Use a new forward-only migration rather than changing already-applied migration files.
+
+The schema must follow the current design and include:
+
+- `id`: UUID primary key.
+- `recipient_id`: non-null foreign key to `users.id`.
+- `vehicle_id`: nullable foreign key to `vehicles.id`, according to the documented schema.
+- `type`: constrained to `low_stock`, `out_of_stock`, or `back_in_stock`.
+- `event_key`: a nonblank, stable server-generated identifier for the stock-changing event.
+- `message`: a nonblank human-readable message.
+- `created_at`: timestamp using the current database convention.
+- `read_at`: nullable timestamp representing when the recipient marked the notification as read.
+
+Follow the documented foreign-key policies and checks. Do not add arbitrary notification types for features outside the current scope.
+
+Add the documented uniqueness rule on `(recipient_id, type, event_key)` so the same recipient cannot receive duplicate notifications for the same event and type. Add the index on `(recipient_id, created_at DESC)` for efficient inbox listing. Add any other index only if it supports a concrete query and is not redundant.
+
+Notifications must be persisted in PostgreSQL. Each notification row must have one explicit recipient. Do not implement a broadcast record that is later interpreted as a notification for everyone.
+
+Stock notifications must be created in the same transaction as the inventory operation that produces them. If a purchase, checkout, or restock rolls back, all notifications created by that operation must also roll back.
+
+Use server-generated stable event keys derived from the operation identity and vehicle/event, not arbitrary new random identifiers on each notification insert. The unique constraint and retry handling must make notification creation safe when an operation is repeated.
+
+## 5. Targeted notification rules
+
+Implement the three event types defined in the project design. The event must be based on the actual stock transition, not merely the current stock value. Do not send a notification on every request just because the vehicle is currently low or out of stock.
+
+### A. `low_stock`
+
+Notify every active admin when a successful stock-changing operation transitions a vehicle from quantity above its configured `low_stock_threshold` to a positive quantity at or below that threshold.
+
+Use the exact transition rule:
+
+`old quantity > low_stock_threshold AND new quantity > 0 AND new quantity <= low_stock_threshold`
+
+For example, if the threshold is 3 and stock changes from 4 to 3, generate a low-stock event. If stock changes from 3 to 2, do not generate another low-stock notification because the vehicle was already at or below the threshold.
+
+A threshold of zero cannot generate a positive low-stock transition under this rule.
+
+Use the database-backed role and account status to identify active admins. Create one notification per eligible admin for the specific vehicle event. Do not notify normal users about low-stock events merely because they have favourited the vehicle.
+
+### B. `out_of_stock`
+
+Notify every active admin when a successful stock-changing operation transitions quantity from a positive value to exactly zero:
+
+`old quantity > 0 AND new quantity = 0`
+
+Generate this notification when the last unit is purchased through direct purchase or cart checkout. It must happen only once for that specific stock transition and must not be generated by a cart add, failed checkout, failed purchase, or duplicate retry.
+
+Keep `out_of_stock` separate from `low_stock`. If the stock operation reaches zero, create the out-of-stock event according to this rule; do not invent extra low-stock events that violate the documented transition conditions.
+
+### C. `back_in_stock`
+
+Notify active users who have explicitly opted in for that vehicle when a successful admin restock changes inventory from exactly zero to a positive quantity:
+
+`old quantity = 0 AND new quantity > 0`
+
+The recipients must have a `favourites` row for the vehicle and `notify_on_restock = true` at the time of the restock transaction.
+
+Users who have not favourited the vehicle, users with the preference disabled, and inactive accounts must not receive the alert. Do not automatically subscribe users simply because the vehicle exists in their cart. Do not notify opted-in users when stock increases from one positive quantity to another; this event specifically represents a transition from zero to positive.
+
+Create one `back_in_stock` notification per eligible recipient. A successful repeated restock request must not generate another alert or increase stock twice.
+
+### Stock-change integration
+
+Integrate the notification rules with the existing stock-changing backend operations, not with controller-side guesses about old quantity.
+
+- **Direct purchase:** create applicable admin notifications in the same transaction as the stock decrement and purchase history inserts.
+- **Cart checkout:** create applicable admin notifications for each actual qualifying vehicle transition within the existing atomic checkout transaction. If the checkout rolls back, the purchase records, stock decrements, cart clearing, and all notifications must roll back together.
+- **Admin restock:** create eligible back-in-stock notifications within the existing atomic restock transaction. The existing restock request-ID idempotency must remain intact.
+- **Opening stock during vehicle creation:** do not create an out-of-stock or back-in-stock transition notification for a vehicle that has just been introduced. Follow the documented event rules rather than treating initial setup as a transition from previous inventory.
+
+Do not alter the existing atomicity, stock validation, purchase history snapshots, request-ID behavior, or cart semantics. If you need to extend the transaction services or repositories, make the smallest maintainable changes and preserve their responsibilities.
+
+Do not change vehicle quantity through ordinary vehicle update endpoints. Existing purchase and restock mechanisms remain the authoritative routes for stock changes.
+
+## 6. Notification API
+
+Implement owner-only notification reading and read status.
+
+**`GET /api/notifications`**
+
+Return notifications addressed to the authenticated user, ordered newest first. Include the notification ID, type, message, vehicle ID when available, creation time, and read status/read timestamp.
+
+Use the backend's existing pagination and validation conventions where applicable. If the current repository has reusable pagination support, use it rather than inventing a second pattern. Return an unread count or equivalent useful summary if that fits the existing response conventions without excessive query complexity.
+
+This endpoint must support an eventual in-app inbox that fetches notifications on page load and polls periodically while the application is open. Implement the API for polling, not WebSockets or a background notification-delivery service.
+
+**`PATCH /api/notifications/:id/read`**
+
+Mark the specified notification as read for the authenticated recipient by setting `read_at` if it has not already been set. Marking an already-read notification must be safe and idempotent.
+
+Every read and update query must be constrained by the authenticated recipient ID. If a notification belongs to another user, do not allow it to be read or modified. Return a consistent not-found response that does not reveal another user's notification details.
+
+Do not trust recipient IDs supplied by clients. Do not expose notification details belonging to other users, even to an ordinary user who knows a notification UUID.
+
+Do not add email delivery, push notifications, scheduled jobs, WebSockets, or third-party notification providers. The scope is persistent in-app notification records and endpoints only.
+
+## 7. Mandatory TDD implementation sequence
+
+Use the following order to keep every behavior testable and every change reviewable. Adjust the order only if the actual codebase requires a different dependency order, and explain why.
+
+### Cycle 1: Database schema and constraints
+
+Write tests for the favourites and notifications schema before implementing the missing tables. Cover uniqueness of the user/vehicle favourite pair, the default opt-in value, allowed notification types, nonblank required values, recipient and vehicle foreign keys, event-key uniqueness, and the inbox index where the test setup can verify it meaningfully.
+
+Run the focused tests and confirm expected failures. Commit the RED tests, implement the minimum forward-only migration, run the focused tests, and commit GREEN.
+
+Verify migration application and idempotency with the existing migration runner, using the appropriate test/development workflow without deleting existing data.
+
+### Cycle 2: Favourites list and add
+
+Test an authenticated user's empty favourites response, listing saved vehicles, saving a valid active vehicle, favouriting a zero-stock active vehicle, duplicate save idempotency, and the default `notify_on_restock = false` value.
+
+Include unauthenticated requests, malformed UUIDs, nonexistent vehicles, soft-deleted vehicles, and attempts to observe another user's favourites.
+
+Verify that adding a favourite never changes stock, cart items, purchase history, or notification records.
+
+Write a focused RED test commit for each distinct missing behavior or a closely related, independently testable group. Implement the smallest passing change in a separate GREEN commit.
+
+### Cycle 3: Remove and update restock preference
+
+Test removal of an existing favourite, removing a nonexistent favourite, ownership isolation, enabling the opt-in preference, disabling it, invalid boolean payloads, and attempts to update the preference for a vehicle the user has not favourited.
+
+Verify that re-adding an existing favourite does not unexpectedly reset its existing preference. Verify that removing a favourite leaves historical notifications intact and disables future restock targeting for that relationship.
+
+Commit genuine RED and GREEN steps separately.
+
+### Cycle 4: Notification schema, listing, and read status
+
+Test an empty inbox, listing only notifications for the authenticated user, newest-first ordering, response read status, unread-count accuracy if implemented, pagination boundaries if supported, marking a notification read, safely repeating the read operation, and attempts to mark another user's notification as read.
+
+Test unauthenticated requests, malformed notification IDs, nonexistent IDs, and response privacy. Ensure changing read status cannot modify a different user's notification.
+
+Write the tests first, observe the expected failures, commit RED, implement, verify, and commit GREEN.
+
+### Cycle 5: Low-stock events
+
+Extend the existing direct-purchase stock transaction to create `low_stock` notifications when the documented threshold transition occurs.
+
+Test the exact boundary conditions, including:
+
+- Stock crossing from above the threshold to exactly the threshold.
+- Stock crossing from above the threshold to below it.
+- Stock already at or below the threshold, with no duplicate low-stock event.
+- Threshold equal to zero.
+- Multiple active admins, each receiving exactly one row for the same event.
+- Inactive admins receiving no alert.
+- Failed purchase or transaction rollback creating no notification.
+
+Use isolated PostgreSQL integration tests. Ensure the logic is based on old and new stock values captured within the authoritative transaction.
+
+### Cycle 6: Out-of-stock events
+
+Test a successful direct purchase of the last unit, the exact out-of-stock boundary, multiple active admins, and no notification when stock remains positive.
+
+Extend cart checkout and test out-of-stock notifications for a vehicle that reaches zero stock during a successful multi-item checkout.
+
+Confirm that a failed multi-item checkout, a rolled-back transaction, or a repeated successful purchase request does not create another notification or change stock a second time.
+
+Test this with real PostgreSQL transaction behavior and preserve the existing direct-purchase and checkout guarantees.
+
+### Cycle 7: Back-in-stock events on restock
+
+Test restocking a vehicle from zero to positive stock with multiple opted-in favourite users, opted-out favourite users, non-favouriting users, and inactive accounts.
+
+Verify that only eligible recipients receive one notification row each. Test positive-to-positive restock and confirm it does not generate a back-in-stock event. Verify restocking a soft-deleted vehicle remains prohibited by existing behavior.
+
+Test repeating an identical restock request and reusing its request ID with different input. The retry must return the original result without additional stock changes or duplicate notifications.
+
+Keep notification insertion inside the same transaction as the existing restock receipt and quantity update.
+
+### Cycle 8: Idempotency, transaction rollback, and regression
+
+Add tests for duplicate notification insertion protection, stable event keys, successful purchase retries, checkout retries, restock retries, notification creation within the stock transaction, and rollback when notification insertion fails.
+
+If inserting a notification fails during a stock-changing operation, the whole operation must follow the documented transactional guarantee: no committed stock change, receipt or purchase update, or partial notification fan-out. The same applies to cart checkout, including preserving cart items after rollback.
+
+Do not implement notifications as a separate best-effort operation after the inventory transaction commits; doing so could produce missing alerts or notifications for changes that later fail.
+
+Run all existing tests for authentication, authorization, vehicle inventory, searching, pagination, purchases, checkout, stock receipts, restocks, and idempotency. Keep the existing suite intact.
+
+### Additional cycles
+
+If inspection discovers other missing edge cases, implement them through additional genuine TDD cycles. Prioritize correct targeting, zero/positive stock boundaries, ownership, idempotency, and transactional consistency. Do not add unrelated features just to increase commit count.
+
+## 8. Transaction, concurrency, and data integrity rules
+
+Use parameterized PostgreSQL queries. Never construct SQL using untrusted IDs, filter values, or client-supplied role information.
+
+Use the actual stock transaction services to decide whether notifications should be generated. Determine old and new quantity values from locked rows or validated atomic updates, not from a potentially stale catalogue response.
+
+Generate notification event keys on the server from a stable stock-changing operation identifier, vehicle identity, and event identity. The same event must reuse the same key on retry. Do not generate a new key for every notification attempt.
+
+Use the schema's uniqueness constraint on `(recipient_id, type, event_key)` and appropriate conflict handling so a retry cannot duplicate an alert. Do not rely on an in-memory set or process-local state.
+
+Stock changes, purchase/receipt history, and resulting notifications must remain atomic. If one part fails, the transaction must roll back all related changes.
+
+Use active account state from the database when selecting admins and opted-in recipients. Notification recipients are selected by the server; clients cannot choose arbitrary recipients.
+
+If a favourite is removed after a back-in-stock alert has been created, keep that existing notification. The removal only ends future targeting. Do not delete or rewrite notification history when a user changes a preference.
+
+The project does not need an outbox service, queue, email sender, scheduled worker, or delivery tracking for this feature. Use the existing PostgreSQL transaction architecture and notification table as documented.
+
+## 9. Documentation and exact prompt history
+
+Update `README.md` and the appropriate API documentation with the implemented favourites and notification routes, access permissions, request/response examples, notification event rules, recipient targeting, read status, and migration/setup instructions. Document actual behavior rather than planned or unverified behavior.
+
+Append this entire prompt verbatim to the existing `PROMPTS.md` under a clear heading. Preserve its exact wording and order; do not replace it with a summary.
+
+The original raw AI conversations or valid public links will be provided by me at the end of the project. Leave that requirement marked as pending if it has not been fulfilled. Do not fabricate transcripts or present generated summaries as the original conversations.
+
+Do not update frontend design documents with assumptions about screens that have not been finalized in Stitch. It is sufficient to document the backend contract needed by the eventual frontend.
+
+## 10. Commit discipline and AI co-authorship
+
+Preserve the established TDD history in separate, focused commits:
+
+- RED commits should contain the failing tests.
+- GREEN commits should contain the minimum implementation necessary to pass the relevant tests.
+- REFACTOR commits should only be created when there is a justified behavior-preserving improvement.
+
+Use clear conventional commit messages that describe the behavior under test or implemented. Include the required AI co-author trailer on AI-assisted commits, using the established `Co-authored-by: Codex <noreply@openai.com>` format where appropriate, with a blank line before the trailer. Do not add an unverified AI identity or unrelated contributor.
+
+Commit complete, verified slices progressively. Do not make one giant commit containing all favourites and notification work. Do not commit secrets, environment files, unrelated dataset changes, or any frontend work.
+
+Do not rewrite published or local commit history. Do not push anything to GitHub.
+
+## 11. Final verification and completion report
+
+After implementing the feature, run each relevant focused test after its RED and GREEN change. At the end, run the full backend test suite using the dedicated PostgreSQL `_test` database, the backend build, `git diff --check`, and the existing root build if it can be run safely without changing frontend files.
+
+Verify all new migrations apply and remain idempotent. Test notification targeting and transactional rollback against real PostgreSQL rather than relying exclusively on mocks. Confirm the test database is clean after fixture cleanup and existing development data was not wiped or recreated.
+
+Verify the following end-to-end backend behavior:
+
+1. An authenticated user can add, list, remove, and configure restock preferences for favourites.
+2. Favouriting a zero-stock active vehicle works and never changes stock.
+3. A successful purchase that crosses the low-stock threshold creates notifications for active admins only.
+4. Purchasing the final unit creates out-of-stock notifications for active admins only.
+5. A successful restock from zero to positive stock notifies only active users who currently favourited the vehicle with restock alerts enabled.
+6. Failed operations and transaction rollbacks do not leave stock changes or notifications behind.
+7. Repeated stock-operation requests do not duplicate notifications.
+8. Each user can list and mark read only their own notification records.
+9. Existing purchase, checkout, restock, authentication, and authorization tests still pass.
+
+Do not modify any files inside `frontend/` and do not add or load the vehicle dataset as part of this task.
+
+Finish with the exact RED/GREEN/REFACTOR commits and their associated behaviors, commands actually run and their results, migration status, any remaining issues or skipped tests, the final `git status --short --branch`, and an explicit statement that nothing was pushed. Do not claim a command or test passed unless it actually did.
+
+Complete the backend implementation rather than stopping after an audit or plan.
