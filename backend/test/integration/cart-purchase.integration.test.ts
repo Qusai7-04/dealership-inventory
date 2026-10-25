@@ -75,4 +75,20 @@ describe('cart and purchase integration', () => {
     expect((await request(app).get('/api/cart').set(bearer(1))).body.items[0].available).toBe(false);
     await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(404);
   });
+
+  it('removes only the owner item and clears without changing stock or deleting the cart', async () => {
+    const id = await vehicle('remove', 3);
+    await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(200);
+    await request(app).post('/api/cart/items').set(bearer(1)).send({ vehicleId: id }).expect(200);
+    const cartId = (await request(app).get('/api/cart').set(bearer(0))).body.cart.id;
+    await request(app).delete(`/api/cart/items/${id}`).set(bearer(0)).expect(200);
+    await request(app).delete(`/api/cart/items/${id}`).set(bearer(0)).expect(200);
+    expect((await request(app).get('/api/cart').set(bearer(1))).body.itemCount).toBeGreaterThan(0);
+    await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(200);
+    await request(app).delete('/api/cart').set(bearer(0)).expect(200);
+    await request(app).delete('/api/cart').set(bearer(0)).expect(200);
+    expect((await request(app).get('/api/cart').set(bearer(0))).body).toMatchObject({ cart: { id: cartId }, itemCount: 0 });
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(3);
+    await request(app).delete('/api/cart/items/bad').set(bearer(0)).expect(400);
+  });
 });
