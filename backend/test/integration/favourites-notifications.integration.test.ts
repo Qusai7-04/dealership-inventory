@@ -98,4 +98,36 @@ describe('favourites and targeted notifications', () => {
     await request(app).patch(`/api/favourites/${id}/notification-preference`).set(bearer(0)).send({ notifyOnRestock: true }).expect(404);
     await request(app).delete('/api/favourites/bad').set(bearer(0)).expect(400);
   });
+
+  it('lists only the recipient inbox newest first and marks only its own rows read', async () => {
+    const id = await vehicle('inbox');
+    await request(app).get('/api/notifications').expect(401);
+    expect((await request(app).get('/api/notifications').set(bearer(0)).expect(200)).body).toMatchObject({ notifications: [], unreadCount: 0 });
+    const older = (await pool.query(
+      "INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message, created_at) VALUES ($1, $2, 'low_stock', $3, 'Low', now() - interval '1 hour') RETURNING id",
+      [users[0], id, crypto.randomUUID()]
+    )).rows[0].id;
+    const newer = (await pool.query(
+      "INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'out_of_stock', $3, 'Empty') RETURNING id",
+      [users[0], id, crypto.randomUUID()]
+    )).rows[0].id;
+    const other = (await pool.query(
+      "INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'back_in_stock', $3, 'Returned') RETURNING id",
+      [users[1], id, crypto.randomUUID()]
+    )).rows[0].id;
+    const page = await request(app).get('/api/notifications').set(bearer(0)).query({ page: 1, limit: 1 }).expect(200);
+    expect(page.body).toMatchObject({ notifications: [{ id: newer, vehicleId: id, read: false, readAt: null }], unreadCount: 2, pagination: { page: 1, limit: 1, total: 2, totalPages: 2 } });
+    expect((await request(app).get('/api/notifications').set(bearer(0)).query({ page: 2, limit: 1 })).body.notifications[0].id).toBe(older);
+    await request(app).patch(`/api/notifications/${other}/read`).set(bearer(0)).expect(404);
+    await request(app).patch('/api/notifications/bad/read').set(bearer(0)).expect(400);
+    await request(app).patch(`/api/notifications/${crypto.randomUUID()}/read`).set(bearer(0)).expect(404);
+    const read = await request(app).patch(`/api/notifications/${newer}/read`).set(bearer(0)).expect(200);
+    expect(read.body.notification).toMatchObject({ id: newer, read: true });
+    const repeated = await request(app).patch(`/api/notifications/${newer}/read`).set(bearer(0)).expect(200);
+    expect(repeated.body.notification.readAt).toBe(read.body.notification.readAt);
+    expect((await request(app).get('/api/notifications').set(bearer(0))).body.unreadCount).toBe(1);
+    expect((await request(app).get('/api/notifications').set(bearer(1))).body.notifications).toMatchObject([{ id: other, read: false }]);
+    await request(app).get('/api/notifications').set(bearer(0)).query({ page: 0 }).expect(400);
+    await request(app).get('/api/notifications').set(bearer(0)).query({ limit: 101 }).expect(400);
+  });
 });
