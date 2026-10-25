@@ -5,13 +5,13 @@ import { createVehicle, deleteVehicle, getVehicle, listVehicles, restockVehicle,
 const router = Router();
 const admin = [authenticate, requireRole('admin')];
 
-router.get('/', async (request, response, next) => {
+router.get('/', authenticate, async (request, response, next) => {
   try { response.json(await listVehicles(request.query)); } catch (error) { next(error); }
 });
-router.get('/search', async (request, response, next) => {
+router.get('/search', authenticate, async (request, response, next) => {
   try { response.json(await listVehicles(request.query)); } catch (error) { next(error); }
 });
-router.get('/:id', async (request, response, next) => {
+router.get('/:id', authenticate, async (request, response, next) => {
   try { response.json({ vehicle: await getVehicle(request.params.id as string) }); } catch (error) { next(error); }
 });
 router.post('/', ...admin, async (request, response, next) => {

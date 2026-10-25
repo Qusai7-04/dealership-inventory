@@ -20,8 +20,8 @@ The brief describes vehicle operations as protected, explicitly limits deletion 
 | `POST /api/auth/register` | Public | Register a normal user |
 | `POST /api/auth/login` | Public | Return an authentication token |
 | `POST /api/vehicles` | Admin | Create listing and opening-stock receipt when quantity is positive |
-| `GET /api/vehicles` | Public | List active listings, including zero stock |
-| `GET /api/vehicles/search` | Public | Filter active listings using the same query parameters |
+| `GET /api/vehicles` | Authenticated | List active listings, including zero stock |
+| `GET /api/vehicles/search` | Authenticated | Filter active listings using the same query parameters |
 | `PUT /api/vehicles/:id` | Admin | Edit catalogue details, never quantity directly |
 | `DELETE /api/vehicles/:id` | Admin | Soft-delete listing |
 | `POST /api/vehicles/:id/purchase` | Authenticated | Buy one unit immediately |
@@ -259,13 +259,13 @@ npm test
 
 ## Vehicle inventory API
 
-Public catalogue reads exclude soft-deleted vehicles:
+Authenticated catalogue reads exclude soft-deleted vehicles:
 
 | Method and route | Access | Purpose |
 |---|---|---|
-| `GET /api/vehicles` | Public | Paginated vehicle list |
-| `GET /api/vehicles/search` | Public | Alias for the filtered vehicle list |
-| `GET /api/vehicles/:id` | Public | Active vehicle details |
+| `GET /api/vehicles` | Authenticated | Paginated vehicle list |
+| `GET /api/vehicles/search` | Authenticated | Alias for the filtered vehicle list |
+| `GET /api/vehicles/:id` | Authenticated | Active vehicle details |
 | `POST /api/vehicles` | Admin | Create a stock line and opening receipt |
 | `PUT /api/vehicles/:id` | Admin | Edit catalogue fields without changing quantity |
 | `DELETE /api/vehicles/:id` | Admin | Soft-delete a stock line |
