@@ -78,13 +78,43 @@ export function validateUpdate(input: unknown): Partial<Omit<VehicleInput, 'quan
   };
 }
 
-function vehicle(row: VehicleRow) {
+export interface VehicleImage {
+  id: string;
+  url: string;
+  altText: string;
+  displayOrder: number;
+}
+
+function vehicle(row: VehicleRow, images: VehicleImage[] = []) {
   return {
     id: row.id, make: row.make, model: row.model,
     category: { id: row.category_id, name: row.category_name },
     price: row.price, quantity: row.quantity, lowStockThreshold: row.low_stock_threshold,
+    images,
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
+}
+
+async function loadImages(vehicleIds: string[]): Promise<Map<string, VehicleImage[]>> {
+  if (vehicleIds.length === 0) return new Map();
+  const result = await query<{ id: string; vehicle_id: string; url: string; alt_text: string; display_order: number }>(
+    `SELECT id, vehicle_id, url, alt_text, display_order
+     FROM vehicle_images
+     WHERE vehicle_id = ANY($1::uuid[])
+     ORDER BY display_order ASC, created_at ASC`,
+    [vehicleIds]
+  );
+  const map = new Map<string, VehicleImage[]>();
+  for (const row of result.rows) {
+    if (!map.has(row.vehicle_id)) map.set(row.vehicle_id, []);
+    map.get(row.vehicle_id)!.push({
+      id: row.id,
+      url: row.url,
+      altText: row.alt_text,
+      displayOrder: row.display_order,
+    });
+  }
+  return map;
 }
 
 const selectVehicle = `SELECT v.id, v.make, v.model, v.category_id, c.name AS category_name,
@@ -148,13 +178,20 @@ export async function listVehicles(input: Record<string, unknown>) {
   const dataValues = [...values, limit, (page - 1) * limit];
   const rows = await query<VehicleRow>(`${selectVehicle} WHERE ${where} ORDER BY ${sorts[sort]} ${direction.toUpperCase()}, v.id ASC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, dataValues);
   const total = Number(count.rows[0].total);
-  return { vehicles: rows.rows.map(vehicle), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  const vehicleIds = rows.rows.map((r) => r.id);
+  const imageMap = await loadImages(vehicleIds);
+  return {
+    vehicles: rows.rows.map((row) => vehicle(row, imageMap.get(row.id) || [])),
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  };
 }
 
 export async function getVehicle(id: string) {
-  const result = await query<VehicleRow>(`${selectVehicle} WHERE v.id = $1 AND v.deleted_at IS NULL`, [validateVehicleId(id)]);
+  const validId = validateVehicleId(id);
+  const result = await query<VehicleRow>(`${selectVehicle} WHERE v.id = $1 AND v.deleted_at IS NULL`, [validId]);
   if (!result.rows[0]) throw new AppError(404, 'Vehicle not found');
-  return vehicle(result.rows[0]);
+  const imageMap = await loadImages([validId]);
+  return vehicle(result.rows[0], imageMap.get(validId) || []);
 }
 
 function databaseError(error: unknown): never {
@@ -168,7 +205,14 @@ function databaseError(error: unknown): never {
 async function selected(client: pg.PoolClient, id: string) {
   const result = await client.query<VehicleRow>(`${selectVehicle} WHERE v.id = $1 AND v.deleted_at IS NULL`, [id]);
   if (!result.rows[0]) throw new AppError(404, 'Vehicle not found');
-  return vehicle(result.rows[0]);
+  const imgRes = await client.query<{ id: string; url: string; alt_text: string; display_order: number }>(
+    `SELECT id, url, alt_text, display_order FROM vehicle_images WHERE vehicle_id = $1 ORDER BY display_order ASC, created_at ASC`,
+    [id]
+  );
+  const images = imgRes.rows.map((r) => ({
+    id: r.id, url: r.url, altText: r.alt_text, displayOrder: r.display_order,
+  }));
+  return vehicle(result.rows[0], images);
 }
 
 export async function createVehicle(input: unknown, actorId: string) {

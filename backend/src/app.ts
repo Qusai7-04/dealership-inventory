@@ -7,9 +7,18 @@ import cartRouter from './cart-routes.js';
 import favouriteRouter from './favourite-routes.js';
 import notificationRouter from './notification-routes.js';
 
+import path from 'node:path';
+import fs from 'node:fs';
+
 const app = express();
 
 app.use(express.json());
+
+const publicImagesPath = fs.existsSync(path.resolve(process.cwd(), 'backend/public/images'))
+  ? path.resolve(process.cwd(), 'backend/public/images')
+  : path.resolve(process.cwd(), 'public/images');
+app.use('/images', express.static(publicImagesPath));
+
 
 app.get('/health', (_request, response) => {
   response.json({ status: 'ok' });

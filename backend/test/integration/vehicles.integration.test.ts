@@ -61,6 +61,10 @@ describe('Vehicle inventory integration', () => {
       'DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM users WHERE email LIKE $1) OR vehicle_id IN (SELECT id FROM vehicles WHERE make LIKE $1)',
       [`${prefix}%`]
     );
+    const hasImages = await pool.query("SELECT to_regclass('public.vehicle_images') AS name");
+    if (hasImages.rows[0].name) {
+      await pool.query('DELETE FROM vehicle_images WHERE vehicle_id IN (SELECT id FROM vehicles WHERE make LIKE $1)', [`${prefix}%`]);
+    }
     const hasReceipts = await pool.query("SELECT to_regclass('public.stock_receipts') AS name");
     if (hasReceipts.rows[0].name) {
       await pool.query('DELETE FROM stock_receipts WHERE vehicle_id IN (SELECT id FROM vehicles WHERE make LIKE $1)', [`${prefix}%`]);
