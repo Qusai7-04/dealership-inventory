@@ -1236,3 +1236,15 @@ Do not modify any files inside `frontend/` and do not add or load the vehicle da
 Finish with the exact RED/GREEN/REFACTOR commits and their associated behaviors, commands actually run and their results, migration status, any remaining issues or skipped tests, the final `git status --short --branch`, and an explicit statement that nothing was pushed. Do not claim a command or test passed unless it actually did.
 
 Complete the backend implementation rather than stopping after an audit or plan.
+
+### Session: Vehicle dataset and image provider integration (2026-10-25)
+
+I want to integrate my vehicle dataset and vehicle image source into the existing Car Dealership Inventory System. The vehicle CSV I already have is named `Car Data India.csv`, and I have an API key for the vehicle image provider described in `dataset-setup-guide.md`. Do not ask me to paste the key into this chat. Set up the environment variables first, ask me to add the key locally, and pause at that checkpoint. After I confirm that I have added it, continue from where you stopped and complete the remaining execution.
+
+Read the existing `dataset-setup-guide.md` if it exists in the workspace, along with `README.md`, `docs/database-design.md`, `AGENTS.md`, `.env.example`, `.gitignore`, the root `package.json`, `backend/package.json`, the existing database migrations, and the current vehicle services and tests. Use the actual repository as the source of truth rather than blindly following an old guide if the current code or official API documentation differs.
+
+The project already has a working TypeScript backend with PostgreSQL, authentication, authorization, vehicle inventory, stock receipts, cart, atomic checkout, favourites, and notifications. Do not break or rewrite any of those features. Keep the changes backend-only. Do not build frontend screens, modify frontend UI components in `frontend/`, redesign the user interface, or add frontend dependencies.
+
+Follow test-driven development: write failing tests first (RED), make the minimum change to pass them (GREEN), and refactor when appropriate. Make small, focused commits at meaningful checkpoints. Every commit must follow conventional commits and include the co-author trailer `Co-authored-by: Codex <noreply@openai.com>` with a blank line before it. Do not push to GitHub.
+
+okay sorry the car data india file is present in reference docs, now continue

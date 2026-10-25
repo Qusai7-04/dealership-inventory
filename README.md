@@ -47,6 +47,9 @@ Run `npm install` once from the repository root. The root npm workspace then pro
 | `npm run build:backend` | Build only the backend |
 | `npm run build:frontend` | Build only the frontend |
 | `npm run migrate` | Build the backend and apply pending migrations |
+| `npm run db:seed:vehicles` | Seed curated vehicle models and opening stock receipts |
+| `npm run db:seed:images` | Fetch and locally cache vehicle images from carimage.dev |
+| `npm run db:seed` | Run vehicle seeding followed by image seeding |
 | `npm run dev:backend` | Run the backend in watch mode on port 3000 by default |
 | `npm run dev:frontend` | Run the frontend development server on port 5173 by default |
 | `npm start` | Start the compiled backend |
@@ -365,7 +368,27 @@ For example, `GET /api/notifications?page=1&limit=20` can return `{"notification
 
 On a successful purchase, stock crossing from above its low-stock threshold to a positive quantity at or below it creates one `low_stock` notification per active admin. A positive-to-zero purchase creates `out_of_stock` notifications for active admins. A zero-to-positive restock creates `back_in_stock` notifications only for active accounts that have favourited that vehicle with the explicit preference enabled. Opening stock creates no alert. Alerts are inserted in the same transaction as the stock change and history record; failed operations roll back both, and successful request-ID retries create no extra alerts.
 
-Unauthenticated requests return `401`; malformed IDs, query parameters, or preference payloads return `400`; unknown vehicles, unsaved favourites for preference changes, and notifications belonging to another user return `404`. A client cannot select a notification recipient or access another user's saved vehicles or inbox.
+## Vehicle dataset & image provider integration
+
+The catalogue data is sourced from real-world and curated industry datasets, while vehicle imagery is provided through studio renders.
+
+### 1. Vehicle dataset (Car Data India)
+
+- **Source:** Kaggle (`namanarora21/car-data-india-market-usage-and-body-type-insights`).
+- **Raw data characteristics:** 10,000 raw rows with 19 columns. An initial automated inspection revealed 4 corrupted/invalid rows (missing body types or negative prices).
+- **Catalogue deduplication:** The raw records contain multiple synthetic entries per vehicle model across different model years and fuel types. The pipeline normalizes whitespace, standardizes casing (e.g. `maruti suzuki` -> `Maruti Suzuki`), and groups rows by unique `(Brand, Model)` pairs, yielding 50 distinct valid make/model combinations.
+- **Curated catalogue:** A balanced catalogue of 35 diverse vehicle models was selected across 10 major manufacturers (`Honda`, `Hyundai`, `Kia`, `Mahindra`, `Maruti Suzuki`, `MG`, `Renault`, `Skoda`, `Tata Motors`, `Toyota`) and 6 canonical vehicle categories (`Sedan`, `SUV`, `Hatchback`, `Coupe`, `Convertible`, `MPV`).
+- **Stock & reconciliation:** Each model is assigned a realistic opening quantity (including both in-stock units and zero-stock listings). When seeded via `npm run db:seed:vehicles`, vehicles with positive opening quantity automatically generate an initial `opening` receipt in `stock_receipts` associated with a system administrator identity, maintaining the audit invariant `current quantity = SUM(receipt additions) - COUNT(completed purchases)`.
+- **Licence & attribution:** Open Database / Database Contents licence for evaluation and demo use.
+
+### 2. Vehicle images (carimage.dev)
+
+- **Provider:** `carimage.dev` studio-render image API.
+- **Licence:** Evaluation and personal kata project tier (100 credits granted upon signup). Commercial production requires a Pro subscription.
+- **Authentication & security:** Configured through the `CAR_IMAGE_API_KEY` environment variable. The key is never logged, exposed in client URLs, or committed to Git. Requests are authenticated server-side using the `Authorization: Bearer <key>` header.
+- **Local caching:** When an image is fetched, binary WebP data is saved locally to `backend/public/images/vehicles/` and served via static route `/images/vehicles/`. Subsequent seed runs and API responses reuse the cached local assets, preserving API credit quotas and enabling offline functionality.
+- **Accessibility:** Accessible alternative text is dynamically formatted as `${year} ${make} ${model}, front three-quarter view` and persisted in `vehicle_images.alt_text`.
+- **Seeding:** `npm run db:seed:images` queries vehicles lacking a cover image (`display_order = 0`) and fetches up to 30 studio-render images safely within evaluation limits.
 
 ## My AI Usage
 
