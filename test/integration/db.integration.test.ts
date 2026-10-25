@@ -3,6 +3,7 @@ import pg from 'pg';
 import request from 'supertest';
 import app from '../../src/app.js';
 import { checkDatabaseConnection, closePool } from '../../src/db.js';
+import { requireTestDatabaseUrl } from '../support/test-database.js';
 
 if (typeof process.loadEnvFile === 'function') {
   try {
@@ -12,10 +13,9 @@ if (typeof process.loadEnvFile === 'function') {
   }
 }
 
-const connectionString = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+const connectionString = requireTestDatabaseUrl();
 
-// Integration test is executed against a real database when connection string is provided
-describe.skipIf(!connectionString)('PostgreSQL Live Integration Tests', () => {
+describe('PostgreSQL Live Integration Tests', () => {
   const pool = new pg.Pool({ connectionString });
 
   afterAll(async () => {

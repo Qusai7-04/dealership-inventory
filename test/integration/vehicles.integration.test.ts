@@ -5,13 +5,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import app from '../../src/app.js';
 import { createAccessToken } from '../../src/auth.js';
 import { runMigrations } from '../../src/migrate.js';
+import { requireTestDatabaseUrl } from '../support/test-database.js';
 
-const connectionString = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+const connectionString = requireTestDatabaseUrl();
 const prefix = `inventory-${process.pid}-${Date.now()}`;
 const secret = 'test-only-secret-at-least-32-characters-long';
 process.env.JWT_SECRET = secret;
 
-describe.skipIf(!connectionString)('Vehicle inventory integration', () => {
+describe('Vehicle inventory integration', () => {
   const pool = new pg.Pool({ connectionString });
   let categoryId: number;
   let otherCategoryId: number;
