@@ -370,6 +370,9 @@ export async function seedVehicleImages(
     const year = yearMap.get(key) ?? 2024;
 
     console.log(`[${i + 1}/${unseeded.rows.length}] Fetching image for ${veh.make} ${veh.model} (${year})...`);
+    if (i > 0) {
+      await new Promise((res) => setTimeout(res, 300));
+    }
 
     try {
       const result = await imageClient.fetchAndCacheImage({

@@ -2,6 +2,7 @@ import type pg from 'pg';
 import { getPool, query } from './db.js';
 import { AppError } from './errors.js';
 import { recordStockNotifications } from './notification-service.js';
+import { CarImageClient } from './image-client.js';
 
 const maxInteger = 2_147_483_647;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -301,5 +302,75 @@ export async function restockVehicle(id: string, input: unknown, actorId: string
     throw error;
   } finally {
     client.release();
+  }
+}
+
+const inProgressImageGenerations = new Set<string>();
+
+export async function generateVehicleImage(id: string) {
+  const validId = validateVehicleId(id);
+  const vRes = await query<{ id: string; make: string; model: string }>(
+    'SELECT id, make, model FROM vehicles WHERE id = $1 AND deleted_at IS NULL',
+    [validId]
+  );
+  if (!vRes.rows[0]) throw new AppError(404, 'Vehicle not found');
+  const vehicle = vRes.rows[0];
+
+  const existingRes = await query<{ id: string; url: string; alt_text: string; display_order: number }>(
+    'SELECT id, url, alt_text, display_order FROM vehicle_images WHERE vehicle_id = $1 AND display_order = 0',
+    [validId]
+  );
+  if (existingRes.rows[0]) {
+    return {
+      created: false,
+      message: 'Vehicle already has a cover image',
+      image: {
+        id: existingRes.rows[0].id,
+        url: existingRes.rows[0].url,
+        altText: existingRes.rows[0].alt_text,
+        displayOrder: existingRes.rows[0].display_order,
+      },
+    };
+  }
+
+  if (inProgressImageGenerations.has(validId)) {
+    throw new AppError(409, 'Image generation already in progress for this vehicle');
+  }
+
+  inProgressImageGenerations.add(validId);
+  try {
+    const client = new CarImageClient();
+    const result = await client.fetchAndCacheImage({
+      make: vehicle.make,
+      model: vehicle.model,
+      year: 2024,
+      view: 'front-3-4',
+    });
+
+    if (!result) {
+      throw new AppError(404, 'Vehicle model not found in image provider catalog');
+    }
+
+    const inserted = await query<{ id: string; vehicle_id: string; url: string; alt_text: string; display_order: number }>(
+      `INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order)
+       VALUES ($1, $2, $3, 0)
+       ON CONFLICT (vehicle_id, display_order) DO UPDATE
+       SET url = EXCLUDED.url, alt_text = EXCLUDED.alt_text
+       RETURNING id, vehicle_id, url, alt_text, display_order`,
+      [validId, result.url, result.altText]
+    );
+
+    return {
+      created: true,
+      message: 'Image generated successfully',
+      image: {
+        id: inserted.rows[0].id,
+        url: inserted.rows[0].url,
+        altText: inserted.rows[0].alt_text,
+        displayOrder: inserted.rows[0].display_order,
+      },
+    };
+  } finally {
+    inProgressImageGenerations.delete(validId);
   }
 }

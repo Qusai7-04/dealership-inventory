@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-labelledby="title description">
+  <title id="title">Creaseline vehicle image placeholder</title>
+  <desc id="description">A neutral line drawing used when no model-matched image is available.</desc>
+  <rect width="800" height="520" fill="#E8E1D4"/>
+  <path d="M135 324h530l-35-102-96-62H295l-101 62-59 102Z" fill="none" stroke="#16150F" stroke-width="12" stroke-linejoin="round"/>
+  <path d="m255 222 66-43h194l68 43H255Z" fill="#F2EDE4" stroke="#16150F" stroke-width="10"/>
+  <circle cx="250" cy="330" r="52" fill="#F2EDE4" stroke="#16150F" stroke-width="12"/>
+  <circle cx="560" cy="330" r="52" fill="#F2EDE4" stroke="#16150F" stroke-width="12"/>
+  <path d="M120 405h560" stroke="#2F4BFF" stroke-width="10"/>
+  <text x="400" y="462" text-anchor="middle" font-family="monospace" font-size="22" fill="#16150F">IMAGE UNAVAILABLE</text>
+</svg>

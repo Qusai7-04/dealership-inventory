@@ -1,5 +1,17 @@
+import path from 'node:path';
 import { seedVehicleImages } from '../image-client.js';
 import { closePool } from '../db.js';
+
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    const repositoryRoot = path.basename(process.cwd()) === 'backend'
+      ? path.resolve(process.cwd(), '..')
+      : process.cwd();
+    process.loadEnvFile(path.join(repositoryRoot, '.env'));
+  } catch {
+    // Ignore when .env does not exist
+  }
+}
 
 async function main() {
   if (!process.env.CAR_IMAGE_API_KEY) {

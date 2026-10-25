@@ -79,7 +79,7 @@ describe('Admin vehicle live image generation route', () => {
 
   it('returns 404 when vehicle ID does not exist', async () => {
     const res = await request(app)
-      .post('/api/vehicles/00000000-0000-0000-0000-000000000000/generate-image')
+      .post('/api/vehicles/00000000-0000-4000-8000-000000000000/generate-image')
       .set(auth(adminToken));
     expect(res.status).toBe(404);
   });
