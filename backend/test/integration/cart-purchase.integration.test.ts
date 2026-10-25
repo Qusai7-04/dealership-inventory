@@ -106,4 +106,19 @@ describe('cart and purchase integration', () => {
     expect((await pool.query('SELECT vehicle_label, unit_price FROM purchase_items WHERE purchase_id = $1', [bought.body.purchase.id])).rows[0]).toMatchObject({ unit_price: '12.35' });
     await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(1)).send({ requestId: crypto.randomUUID() }).expect(409);
   });
+
+  it('checks out distinct items atomically at confirmed prices and keeps the reusable cart', async () => {
+    const a = await vehicle('checkout-a', 2, '0.10');
+    const b = await vehicle('checkout-b', 2, '0.20');
+    await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: a }).expect(200);
+    await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: b }).expect(200);
+    const cartId = (await request(app).get('/api/cart').set(bearer(0))).body.cart.id;
+    const body = { requestId: crypto.randomUUID(), items: [{ vehicleId: a, price: '0.10' }, { vehicleId: b, price: '0.20' }] };
+    const result = await request(app).post('/api/cart/checkout').set(bearer(0)).send(body).expect(200);
+    expect(result.body.purchase).toMatchObject({ source: 'cart', totalPrice: '0.30' });
+    expect(result.body.purchase.items).toHaveLength(2);
+    expect((await request(app).get('/api/cart').set(bearer(0))).body).toMatchObject({ cart: { id: cartId }, items: [] });
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = ANY($1::uuid[]) ORDER BY id', [[a, b]])).rows.map((row) => row.quantity)).toEqual([1, 1]);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send({ requestId: crypto.randomUUID(), items: [] }).expect(409);
+  });
 });
