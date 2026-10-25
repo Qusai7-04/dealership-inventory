@@ -69,6 +69,7 @@ Each image belongs to exactly one vehicle, and a vehicle has zero or many images
 | `kind` | `text`, check in (`opening`, `restock`) |
 | `quantity_added` | `integer`, check `> 0` |
 | `request_id` | nullable `uuid` only for `opening`; required for `restock` |
+| `resulting_quantity` | `integer`, nonnegative stock immediately after this receipt |
 | `created_at` | `timestamptz` |
 
 One vehicle has zero or many receipts and one admin may record many receipts. Both FKs restrict physical deletion. A positive opening quantity creates one `opening` receipt in the vehicle-create transaction; zero opening quantity needs no receipt. A partial unique index allows at most one opening receipt per vehicle. Restock inserts a `restock` receipt and increments stock in one transaction. Unique `(actor_id, request_id)` for restocks makes a successful retry safe; the application also compares its original vehicle and quantity so reuse of a key for different input is rejected. Receipts are immutable audit history.

@@ -108,6 +108,7 @@ erDiagram
         text kind
         int quantity_added
         uuid request_id
+        int resulting_quantity
         timestamptz created_at
     }
     favourites {
@@ -295,7 +296,7 @@ Content-Type: application/json
 {"quantity":5,"requestId":"<uuid>"}
 ```
 
-Migration `002_create_stock_receipts.sql` records opening inventory and restocks. Stock changes and their receipt records commit together, while PostgreSQL atomic updates prevent concurrent restocks from overwriting each other.
+Migrations `002_create_stock_receipts.sql` and `003_add_stock_receipt_result_quantity.sql` record opening inventory, restocks, and the quantity returned by an idempotent replay. Stock changes and their receipt records commit together, while PostgreSQL atomic updates prevent concurrent restocks from overwriting each other.
 
 ## My AI Usage
 

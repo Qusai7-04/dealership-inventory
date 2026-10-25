@@ -182,7 +182,7 @@ export async function createVehicle(input: unknown, actorId: string) {
     );
     const id = inserted.rows[0].id;
     if (data.quantity > 0) {
-      await client.query("INSERT INTO stock_receipts (vehicle_id, actor_id, kind, quantity_added) VALUES ($1, $2, 'opening', $3)", [id, actorId, data.quantity]);
+      await client.query("INSERT INTO stock_receipts (vehicle_id, actor_id, kind, quantity_added, resulting_quantity) VALUES ($1, $2, 'opening', $3, $3)", [id, actorId, data.quantity]);
       await client.query('UPDATE vehicles SET quantity = $1, updated_at = now() WHERE id = $2', [data.quantity, id]);
     }
     const result = await selected(client, id);
@@ -229,15 +229,15 @@ export async function restockVehicle(id: string, input: unknown, actorId: string
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${actorId}:${requestId}`]);
-    const prior = await client.query<{ vehicle_id: string; quantity_added: number }>("SELECT vehicle_id, quantity_added FROM stock_receipts WHERE actor_id = $1 AND request_id = $2 AND kind = 'restock'", [actorId, requestId]);
+    const prior = await client.query<{ vehicle_id: string; quantity_added: number; resulting_quantity: number }>("SELECT vehicle_id, quantity_added, resulting_quantity FROM stock_receipts WHERE actor_id = $1 AND request_id = $2 AND kind = 'restock'", [actorId, requestId]);
     if (prior.rows[0]) {
       if (prior.rows[0].vehicle_id !== id || prior.rows[0].quantity_added !== quantity) throw new AppError(409, 'Request ID was already used for a different restock');
       const result = await selected(client, id);
       await client.query('COMMIT');
-      return result;
+      return { ...result, quantity: prior.rows[0].resulting_quantity };
     }
-    const updated = await client.query(
-      'UPDATE vehicles SET quantity = quantity + $1, updated_at = now() WHERE id = $2 AND deleted_at IS NULL AND quantity <= $3 RETURNING id',
+    const updated = await client.query<{ id: string; quantity: number }>(
+      'UPDATE vehicles SET quantity = quantity + $1, updated_at = now() WHERE id = $2 AND deleted_at IS NULL AND quantity <= $3 RETURNING id, quantity',
       [quantity, id, maxInteger - quantity]
     );
     if (!updated.rows[0]) {
@@ -245,7 +245,7 @@ export async function restockVehicle(id: string, input: unknown, actorId: string
       if (!exists.rows[0]) throw new AppError(404, 'Vehicle not found');
       throw new AppError(409, 'Restock would exceed the maximum quantity');
     }
-    await client.query("INSERT INTO stock_receipts (vehicle_id, actor_id, kind, quantity_added, request_id) VALUES ($1, $2, 'restock', $3, $4)", [id, actorId, quantity, requestId]);
+    await client.query("INSERT INTO stock_receipts (vehicle_id, actor_id, kind, quantity_added, request_id, resulting_quantity) VALUES ($1, $2, 'restock', $3, $4, $5)", [id, actorId, quantity, requestId, updated.rows[0].quantity]);
     const result = await selected(client, id);
     await client.query('COMMIT');
     return result;

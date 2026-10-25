@@ -20,9 +20,9 @@ describe('Migration Live Integration Tests', () => {
     // Verify schema_migrations table exists and has rows
     const { rows: migrationRows } = await pool.query(
       'SELECT name FROM schema_migrations WHERE name = ANY($1::text[]);',
-      [['001_create_users_categories_vehicles.sql', '002_create_stock_receipts.sql']]
+      [['001_create_users_categories_vehicles.sql', '002_create_stock_receipts.sql', '003_add_stock_receipt_result_quantity.sql']]
     );
-    expect(migrationRows.length).toBe(2);
+    expect(migrationRows.length).toBe(3);
 
     // Verify inventory and authentication tables exist in information_schema
     const { rows: tableRows } = await pool.query(`

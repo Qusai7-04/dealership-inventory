@@ -37,6 +37,7 @@ describe('Migration Runner', () => {
 
     expect(applied).toContain('001_create_users_categories_vehicles.sql');
     expect(applied).toContain('002_create_stock_receipts.sql');
+    expect(applied).toContain('003_add_stock_receipt_result_quantity.sql');
     expect(mockClientQuery).toHaveBeenCalledWith('BEGIN');
     expect(mockClientQuery).toHaveBeenCalledWith(
       'INSERT INTO schema_migrations (name) VALUES ($1);',
@@ -56,6 +57,7 @@ describe('Migration Runner', () => {
       rows: [
         { name: '001_create_users_categories_vehicles.sql' },
         { name: '002_create_stock_receipts.sql' },
+        { name: '003_add_stock_receipt_result_quantity.sql' },
       ],
     });
 
