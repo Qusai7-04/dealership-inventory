@@ -94,9 +94,9 @@ export async function checkout(userId: string, input: unknown) {
     const selected = (await client.query<{ vehicle_id: string }>('SELECT vehicle_id FROM cart_items WHERE cart_id = $1 ORDER BY vehicle_id FOR UPDATE', [cart.id])).rows;
     if (!selected.length) throw new AppError(409, 'Cart is empty');
     if (selected.length !== requested.length || selected.some((item, index) => item.vehicle_id !== requested[index].vehicleId)) throw new AppError(409, 'Cart contents have changed');
-    const vehicles = [] as { id: string; make: string; model: string; price: string; quantity: number; deleted_at: Date | null }[];
+    const vehicles = [] as { id: string; make: string; model: string; price: string; quantity: number; low_stock_threshold: number; deleted_at: Date | null }[];
     for (const item of requested) {
-      const vehicle = (await client.query<(typeof vehicles)[number]>('SELECT id, make, model, price, quantity, deleted_at FROM vehicles WHERE id = $1 FOR UPDATE', [item.vehicleId])).rows[0];
+      const vehicle = (await client.query<(typeof vehicles)[number]>('SELECT id, make, model, price, quantity, low_stock_threshold, deleted_at FROM vehicles WHERE id = $1 FOR UPDATE', [item.vehicleId])).rows[0];
       if (!vehicle || vehicle.deleted_at || vehicle.quantity < 1) throw new AppError(409, `Vehicle ${item.vehicleId} is unavailable`);
       if (vehicle.price !== item.price) throw new AppError(409, `Price changed for vehicle ${item.vehicleId}`);
       vehicles.push(vehicle);
@@ -111,6 +111,8 @@ export async function checkout(userId: string, input: unknown) {
       if (updated.rowCount !== 1) throw new AppError(409, `Vehicle ${vehicle.id} is unavailable`);
       await client.query('INSERT INTO purchase_items (purchase_id, vehicle_id, vehicle_label, unit_price) VALUES ($1, $2, $3, $4)',
         [purchase.id, vehicle.id, `${vehicle.make} ${vehicle.model}`, vehicle.price]);
+      await recordStockNotifications(client, vehicle.id, `${vehicle.make} ${vehicle.model}`,
+        vehicle.quantity, vehicle.quantity - 1, vehicle.low_stock_threshold, `purchase:${purchase.id}:${vehicle.id}`);
     }
     await client.query('DELETE FROM cart_items WHERE cart_id = $1', [cart.id]);
     await client.query('UPDATE carts SET updated_at = now() WHERE id = $1', [cart.id]);
