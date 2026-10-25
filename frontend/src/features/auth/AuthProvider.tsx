@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { createApiClient, type ApiClient } from '../../api/client';
+import { createApiClient, ApiError, type ApiClient } from '../../api/client';
 import type { User } from '../../types/api';
 
 const storageKey = 'creaseline.session';
@@ -9,7 +9,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   notice: string | null;
-  login(email: string, password: string): Promise<void>;
+  login(email: string, password: string, requiredRole?: 'admin' | 'user'): Promise<User>;
   register(fullName: string, email: string, password: string): Promise<void>;
   logout(): void;
 }
@@ -50,12 +50,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, requiredRole?: 'admin' | 'user'): Promise<User> {
     setNotice(null);
     const result = await api.post<{ token: string; user: User }>('/api/auth/login', { email, password });
+    if (requiredRole === 'admin' && result.user.role !== 'admin') {
+      clearSession(false);
+      throw new ApiError(403, 'This account does not have administrator access');
+    }
     sessionStorage.setItem(storageKey, result.token);
     setToken(result.token);
     setUser(result.user);
+    return result.user;
   }
 
   async function register(fullName: string, email: string, password: string) {

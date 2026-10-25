@@ -102,7 +102,7 @@ describe('authentication flow', () => {
     await user.type(screen.getByLabelText(/passcode/i), 'secret123');
     await user.click(screen.getByRole('button', { name: /authenticate as admin/i }));
 
-    expect(await screen.findByRole('heading', { name: /inventory workspace/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /dealership ledger/i })).toBeInTheDocument();
     expect(sessionStorage.getItem('creaseline.session')).toBe('admin-token');
     fetchMock.mockRestore();
   });
