@@ -1,0 +1,282 @@
+[
+  {
+    "make": "Honda",
+    "model": "Amaze",
+    "category": "Sedan",
+    "price": 3430000,
+    "year": 2024,
+    "opening_quantity": 5
+  },
+  {
+    "make": "Hyundai",
+    "model": "Creta",
+    "category": "Coupe",
+    "price": 3400000,
+    "year": 2024,
+    "opening_quantity": 2
+  },
+  {
+    "make": "Kia",
+    "model": "Carens",
+    "category": "Convertible",
+    "price": 3270000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Mahindra",
+    "model": "Bolero",
+    "category": "Hatchback",
+    "price": 3490000,
+    "year": 2024,
+    "opening_quantity": 8
+  },
+  {
+    "make": "Maruti Suzuki",
+    "model": "Baleno",
+    "category": "SUV",
+    "price": 3480000,
+    "year": 2024,
+    "opening_quantity": 3
+  },
+  {
+    "make": "Renault",
+    "model": "Duster",
+    "category": "Coupe",
+    "price": 3290000,
+    "year": 2024,
+    "opening_quantity": 10
+  },
+  {
+    "make": "Skoda",
+    "model": "Kushaq",
+    "category": "Convertible",
+    "price": 3470000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Tata Motors",
+    "model": "Altroz",
+    "category": "Sedan",
+    "price": 3190000,
+    "year": 2024,
+    "opening_quantity": 4
+  },
+  {
+    "make": "Toyota",
+    "model": "Camry",
+    "category": "Convertible",
+    "price": 3370000,
+    "year": 2024,
+    "opening_quantity": 1
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Polo",
+    "category": "Coupe",
+    "price": 2610000,
+    "year": 2024,
+    "opening_quantity": 6
+  },
+  {
+    "make": "Honda",
+    "model": "City",
+    "category": "Hatchback",
+    "price": 3340000,
+    "year": 2024,
+    "opening_quantity": 12
+  },
+  {
+    "make": "Hyundai",
+    "model": "i10",
+    "category": "Convertible",
+    "price": 2990000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Kia",
+    "model": "Carnival",
+    "category": "Sedan",
+    "price": 3400000,
+    "year": 2024,
+    "opening_quantity": 5
+  },
+  {
+    "make": "Mahindra",
+    "model": "Scorpio",
+    "category": "Coupe",
+    "price": 3130000,
+    "year": 2024,
+    "opening_quantity": 2
+  },
+  {
+    "make": "Maruti Suzuki",
+    "model": "Dzire",
+    "category": "Convertible",
+    "price": 3490000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Renault",
+    "model": "Kiger",
+    "category": "Coupe",
+    "price": 3500000,
+    "year": 2024,
+    "opening_quantity": 8
+  },
+  {
+    "make": "Skoda",
+    "model": "Octavia",
+    "category": "Sedan",
+    "price": 3470000,
+    "year": 2024,
+    "opening_quantity": 3
+  },
+  {
+    "make": "Tata Motors",
+    "model": "Harrier",
+    "category": "Coupe",
+    "price": 3360000,
+    "year": 2024,
+    "opening_quantity": 10
+  },
+  {
+    "make": "Toyota",
+    "model": "Fortuner",
+    "category": "Hatchback",
+    "price": 3470000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Taigun",
+    "category": "Convertible",
+    "price": 3210000,
+    "year": 2024,
+    "opening_quantity": 4
+  },
+  {
+    "make": "Honda",
+    "model": "Civic",
+    "category": "Convertible",
+    "price": 3480000,
+    "year": 2024,
+    "opening_quantity": 1
+  },
+  {
+    "make": "Hyundai",
+    "model": "i20",
+    "category": "SUV",
+    "price": 3270000,
+    "year": 2024,
+    "opening_quantity": 6
+  },
+  {
+    "make": "Kia",
+    "model": "EV6",
+    "category": "Convertible",
+    "price": 3390000,
+    "year": 2024,
+    "opening_quantity": 12
+  },
+  {
+    "make": "Mahindra",
+    "model": "Thar",
+    "category": "Convertible",
+    "price": 3490000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Maruti Suzuki",
+    "model": "Ertiga",
+    "category": "Hatchback",
+    "price": 3490000,
+    "year": 2024,
+    "opening_quantity": 5
+  },
+  {
+    "make": "Renault",
+    "model": "Kwid",
+    "category": "SUV",
+    "price": 2890000,
+    "year": 2024,
+    "opening_quantity": 2
+  },
+  {
+    "make": "Skoda",
+    "model": "Rapid",
+    "category": "Convertible",
+    "price": 3470000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Tata Motors",
+    "model": "Nexon",
+    "category": "Sedan",
+    "price": 2690000,
+    "year": 2024,
+    "opening_quantity": 8
+  },
+  {
+    "make": "Toyota",
+    "model": "Glanza",
+    "category": "Sedan",
+    "price": 3490000,
+    "year": 2024,
+    "opening_quantity": 3
+  },
+  {
+    "make": "Volkswagen",
+    "model": "Tiguan",
+    "category": "Sedan",
+    "price": 3380000,
+    "year": 2024,
+    "opening_quantity": 10
+  },
+  {
+    "make": "Honda",
+    "model": "Jazz",
+    "category": "Coupe",
+    "price": 3340000,
+    "year": 2024,
+    "opening_quantity": 0
+  },
+  {
+    "make": "Hyundai",
+    "model": "Venue",
+    "category": "Coupe",
+    "price": 3380000,
+    "year": 2024,
+    "opening_quantity": 4
+  },
+  {
+    "make": "Kia",
+    "model": "Seltos",
+    "category": "Hatchback",
+    "price": 3480000,
+    "year": 2024,
+    "opening_quantity": 1
+  },
+  {
+    "make": "Mahindra",
+    "model": "XUV300",
+    "category": "Convertible",
+    "price": 3340000,
+    "year": 2024,
+    "opening_quantity": 6
+  },
+  {
+    "make": "Maruti Suzuki",
+    "model": "Swift",
+    "category": "Hatchback",
+    "price": 3450000,
+    "year": 2024,
+    "opening_quantity": 12
+  }
+]
