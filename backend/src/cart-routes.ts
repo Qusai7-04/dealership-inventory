@@ -1,14 +1,17 @@
 import { Router } from 'express';
 import { authenticate } from './auth.js';
-import { query } from './db.js';
+import { addCartItem, getCart } from './cart-service.js';
 
 const router = Router();
 
 router.get('/', authenticate, async (request, response, next) => {
   try {
-    const cart = await query<{ id: string }>('SELECT id FROM carts WHERE user_id = $1', [request.user!.id]);
-    response.json({ cart: cart.rows[0] ?? null, items: [], itemCount: 0, subtotal: '0.00' });
+    response.json(await getCart(request.user!.id));
   } catch (error) { next(error); }
+});
+
+router.post('/items', authenticate, async (request, response, next) => {
+  try { response.json(await addCartItem(request.user!.id, request.body)); } catch (error) { next(error); }
 });
 
 export default router;
