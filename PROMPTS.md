@@ -1248,3 +1248,395 @@ The project already has a working TypeScript backend with PostgreSQL, authentica
 Follow test-driven development: write failing tests first (RED), make the minimum change to pass them (GREEN), and refactor when appropriate. Make small, focused commits at meaningful checkpoints. Every commit must follow conventional commits and include the co-author trailer `Co-authored-by: Codex <noreply@openai.com>` with a blank line before it. Do not push to GitHub.
 
 okay sorry the car data india file is present in reference docs, now continue
+
+
+### Session: Complete Creaseline application audit and frontend (2026-10-25)
+
+I want to finish the Car Dealership Inventory System so I can run the complete application locally and test the real end-to-end workflow. There are two main tasks, and the order matters: first audit the vehicle dataset and image integration that Gemini implemented, correct any real defects, and verify it properly; then implement the complete frontend using the supplied Creaseline Frontend UI Pack and connect it to the real backend. Do not simply trust the previous implementation report. Inspect the actual code, database, image files, API contracts, and tests.
+
+Work in my existing local repository at `C:\PROJECTS\Dealership Inventory`. The current branch contains committed work that has not been pushed to GitHub. I am deliberately not pushing yet. Preserve the existing work and all TDD history, and do not push anything during this task.
+
+The uploaded `Creaseline_Frontend_UI_Pack(1).zip` is an important input. Locate and inspect the complete pack before implementing the UI. It contains `01_CREASELINE_PROJECT_UI_SPEC.md`, `02_FRONTEND_IMPLEMENTATION_PROMPT.md`, `03_DATA_AND_IMAGE_RULES.md`, `04_API_CONTRACT.md`, the Stitch reference screenshots and HTML, and design documents. If the archive is not accessible in this Codex session, ask me to put it at `reference-docs/Creaseline_Frontend_UI_Pack.zip` and wait for it before implementing the UI. Do not claim to have inspected files that you cannot access.
+
+Read the current `AGENTS.md`, `README.md`, `PROMPTS.md`, `docs/database-design.md`, `reference-docs/dataset-setup-guide.md` if present, the uploaded UI pack, backend and frontend package files, all relevant migrations, image and vehicle services, seed scripts, route modules, and existing tests. The actual local repository and database schema are the source of truth if any older guide disagrees with them.
+
+The project is called **Creaseline**. Use the FOLD catalogue concepts as visual inspiration, but the final product must be correctly branded Creaseline. Do not copy the FOLD brand, invented car facts, fake dealership history, fake certifications, reservation or delivery workflows, payment claims, sample sales data, or fake stock values. I want a real React application using the current React, TypeScript, Vite, and Tailwind CSS workspace, integrated with the existing TypeScript/Express/PostgreSQL backend.
+
+The frontend must not be implemented as a collection of disconnected static HTML pages. It needs real routes, reusable components, typed API integration, authentication/session handling, real API-derived data, working forms and actions, responsive styling, tests, error handling, and clear setup instructions.
+
+## Part A — Audit Gemini's dataset and image integration first
+
+Do this before substantial frontend work. Do not rely on the Gemini execution summary as proof that the feature works. Inspect the current local implementation and then verify what can be verified without spending more image-provider credits.
+
+The previous report claims that Gemini:
+
+- Added `backend/src/dataset-cleaner.ts`.
+- Created a curated file at `backend/data/vehicles.seed.json` from `Car Data India.csv`.
+- Added migration `006_create_vehicle_images.sql`.
+- Added `backend/src/seeder.ts` and `backend/src/scripts/seed-vehicles.ts`.
+- Added `backend/src/image-client.ts` and `backend/src/scripts/seed-images.ts`.
+- Saved images under `backend/public/images/vehicles/`.
+- Updated vehicle list/detail responses to expose ordered images.
+- Added root/backend seed scripts and documentation.
+- Seeded 35 vehicle records, 27 opening-stock receipts, and 16 images.
+- Reported 101 passing tests and successful root/backend builds.
+
+Treat these numbers as expected checkpoints to investigate, not facts you can assume to be true in the current checkout. Verify the actual results.
+
+### 1. Inspect Git and configuration safely
+
+Record the current branch, `git status --short --branch`, and recent commit history. Preserve the current local commits and the unpushed dataset work. Do not fetch, pull, merge, rebase, reset, squash, amend, force-push, or push anything to GitHub. Do not overwrite uncommitted user changes. Only stage files belonging to the relevant TDD cycle or completed work.
+
+Inspect the root and backend npm workspaces, current migrations, `.gitignore`, `.env.example`, local `.env` loading, and existing seed commands.
+
+Never print the actual `CAR_IMAGE_API_KEY`, JWT secret, database password, connection string, or authorization header to the terminal, logs, test output, documentation, or chat. It is acceptable to report whether a required variable is configured, without displaying its value or unnecessarily exposing its length.
+
+Verify that `.env` is ignored by Git and that the image API key is not embedded in source, `VITE_*` variables, HTML, frontend bundles, public environment files, or committed configuration. If a credential appears exposed, report the exact location without reproducing the secret and explain the safe correction. Do not rewrite Git history in this task.
+
+### 2. Audit the CSV cleaning and curated vehicle data
+
+Inspect `backend/src/dataset-cleaner.ts`, `backend/data/vehicles.seed.json`, the actual local CSV, and the vehicle-seeding implementation. If the CSV is available at `reference-docs/Car Data India.csv`, use that local file for verification. Do not download a replacement dataset if the existing CSV is missing.
+
+Verify the actual input row count, output row count, duplicate handling, selected representative row per make/model, category normalization, price conversion, invalid records and reported skips. Confirm the seeder never treats `Car_ID` as the database UUID and does not expose synthetic technical columns as factual vehicle specifications.
+
+The source dataset has known unreliable technical attributes. Use only the approved make, model, body type/category, price, and the retained year needed for image lookup. Do not display year as a vehicle specification because the current vehicle schema does not persist it. Do not add fields such as mileage, fuel type, transmission, engine size, owner history, or accident records simply because the CSV contains them.
+
+Confirm that the cleaned JSON has deterministic content and one record per intended active `(make, model)` pair. Check category mappings and price values against the actual schema. Ensure duplicate or invalid records are rejected or reported instead of silently being fabricated or coerced to zero.
+
+Keep the raw 10,000-row CSV local if that is appropriate under its licence. Check the existing ignore rules and avoid committing a restricted raw file. Retain source attribution, licence details, and an honest note about the synthetic nature of the dataset.
+
+### 3. Audit database seeding and stock reconciliation
+
+Inspect `backend/src/seeder.ts`, `backend/src/scripts/seed-vehicles.ts`, the actual migration history, and the live local development database configuration. Verify the seed command is explicitly pointed at the intended local development database before running any database-writing command.
+
+The seeder must be deterministic and safe to rerun. Existing vehicles must not have their current price, category, quantity, or other state reset simply because the seed file contains different values. New vehicles should be inserted without duplicating existing active make/model stock lines.
+
+Verify that canonical categories are inserted or reused correctly. Verify that positive opening inventory has matching `opening` stock receipts with correct quantities and resulting stock. Ensure the vehicle quantity reconciles with opening/restock receipt history minus completed purchase items according to the documented invariant. Zero opening stock must follow the existing database rules.
+
+Do not truncate tables or recreate the database to make the import pass. Do not delete existing users, vehicles, purchases, stock receipts, favourites, carts, or notifications to clean up a seed run.
+
+Use the dedicated PostgreSQL `_test` database for destructive or isolated seeder integration tests. Maintain the existing `TEST_DATABASE_URL` guard and never let tests fall back silently to development.
+
+The previous report says 35 catalogue rows and 27 opening receipts were created. Query the live database using read-only queries to check the current count and reconciliation. If the numbers differ, determine whether this comes from prior seed runs or another legitimate state change before making changes.
+
+Test the seed script's idempotency against an isolated test database. Do not reset existing inventory to make the data match the expected example.
+
+### 4. Audit the vehicle image integration
+
+Inspect `backend/src/image-client.ts`, `backend/src/scripts/seed-images.ts`, the migration for `vehicle_images`, `backend/src/app.ts`, `backend/src/vehicle-service.ts`, and all related tests. Verify the actual behavior from the code rather than assuming the report is correct.
+
+The intended integration uses `CAR_IMAGE_API_KEY` server-side, generates or obtains model-matched car renders from `carimage.dev`, stores permitted image files under `backend/public/images/vehicles/`, and persists image references in `vehicle_images`.
+
+Verify all of the following:
+
+- The key is read only by the backend/image script and never by the browser.
+- Authorization uses the documented header and the key is not placed in a query string, committed configuration, error response, or log.
+- HTTP requests have a finite timeout and bounded retry behavior.
+- A 404 or unsupported model/year is handled as an unavailable image, rather than an endless retry.
+- Rate limits and temporary server failures are handled safely.
+- Existing images and database image rows are reused; the script does not fetch or spend credits again on every execution.
+- The script does not generate a random image or associate an unrelated model image with a vehicle.
+- Image files on disk match the references stored in PostgreSQL.
+- `vehicle_images.url`, `alt_text`, and `display_order` are valid and consistent, with the main image using display order zero.
+- There are no duplicate image rows or broken local file references.
+- Vehicles without a matched image remain valid vehicles and can still be browsed and purchased.
+
+The last report claims 16 model-matched images were cached and 19 vehicles have no image. Confirm the actual files, records, and counts. A vehicle without an image should display a fallback; it is not a reason to fabricate a match.
+
+Check that the image static route resolves the intended directory correctly both during development and after TypeScript compilation when the server is launched from the root workspace. Use a real HTTP request against the running local backend where feasible. Verify the path works for the current `backend/public/images/vehicles/` assets and does not reveal files outside the intended public directory.
+
+The earlier report says carimage.dev's free tier is for evaluation/personal projects only. Verify the applicable provider terms documented by the project and keep the usage within the permitted academic demonstration scope. Document that the assets are not cleared for commercial deployment if the current terms say so.
+
+**Do not call the live image provider, rerun `npm run db:seed:images`, generate new renders, or refresh signed URLs merely to prove that the existing integration works.** First audit the cached files, database, implementation, and mocked tests. Image-generation credits must not be spent during this task without a clearly identified need and explicit approval.
+
+Run image-client unit tests against mocked HTTP responses. If the code has a real defect, fix it using TDD. Test image failures, timeout handling, key absence, duplicate handling, and local file delivery. Do not turn an external provider outage into fabricated images.
+
+### 5. Dataset integration exit condition
+
+Before starting substantive UI work, make sure the existing catalogue/image setup is safe to use.
+
+Run the existing backend tests and build to establish a local baseline. Verify the migration runner sees the expected migration state. Do not reapply a migration destructively or rerun an unsafe seeder just because a command is documented in the README.
+
+If you find a genuine defect, add a focused failing test, run it, commit the RED test separately, implement the smallest fix, rerun tests, and commit GREEN separately. Do not manufacture failing tests. Refactor only if justified.
+
+Report the dataset integration audit results to yourself in your execution summary and then continue with the frontend work. Do not stop after the audit unless the UI pack is inaccessible or a genuine blocking safety/data-integrity issue cannot be resolved safely.
+
+## Part B — Implement the complete Creaseline frontend
+
+Once the data/image audit is complete, implement the frontend inside the existing `frontend/` workspace. Use the files in the UI pack and the existing backend as the source of truth. Do not replace the backend or rewrite its established business rules.
+
+### 6. Follow the actual Stitch design references
+
+Inspect the pack's screenshots, HTML, and design documents. Use the original reference screens to understand the layout, hierarchy, density, and interaction style, but do not copy their static HTML into the application as the implementation.
+
+Apply the Creaseline visual system:
+
+- Warm cream paper canvas `#F2EDE4`, lighter paper `#E8E1D4`, and recessed paper `#DCD3C2`.
+- Ink `#16150F` for text, borders, outlines, and structural rules.
+- Electric blue `#2F4BFF` for primary actions and active navigation.
+- Lime `#C6F24E` for available/live stock.
+- Orange for low-stock attention and red for zero-stock, errors, and destructive actions.
+- Space Grotesk for headings/navigation, Instrument Serif italic for editorial accents, Inter for body copy, and Space Mono for prices and numeric data, with practical fallback fonts.
+- Tactile catalogue layouts, hard-edged paper borders, strong offset shadows, editorial vehicle imagery, clear dividers, asymmetric pinboard composition on the homepage, and a clean, denser inventory layout for admin use.
+- Small, purposeful press feedback for controls. The signature paper-fold animation is only for successfully adding an item to the cart.
+- Responsive desktop, tablet, and mobile layouts, with mobile bottom navigation.
+- Proper keyboard navigation, visible focus rings, accessible labels, meaningful image alt text, sufficient contrast, and reduced-motion support.
+
+Do not overdecorate the application with gradients, excessive stamps, glassmorphism, random badges, or arbitrary animation. The reference design is tactile and editorial; preserve its visual identity with restrained, professional implementation.
+
+Use `Creaseline` as the brand. Never display `FOLD` as the real product name. Good action labels include `Browse vehicles`, `Vehicle details`, `Add to cart`, `Purchase now`, `Your cart`, `Confirm purchase`, `Inventory management`, `Restock`, `Favourites`, `Notifications`, `Sign in`, and `Create account`.
+
+### 7. Design the actual application, not a static mockup
+
+Implement a cohesive React SPA with shared layout, route navigation, typed data services, reusable controls, proper application state, and authenticated/admin route handling. Keep feature logic out of large monolithic page components. A sensible structure is:
+
+`frontend/src/api/`, `frontend/src/types/`, `frontend/src/features/auth/`, `features/vehicles/`, `features/cart/`, `features/favourites/`, `features/notifications/`, `features/admin/`, `components/`, and `pages/`.
+
+Adapt the structure to existing code and avoid over-abstraction. Use the existing React 19, TypeScript, Vite, Tailwind CSS 4 configuration unless an actual incompatibility is found. Do not replace the current toolchain wholesale or introduce a large dependency without a justified need.
+
+Create a consistent visual hierarchy, shared navigation, forms, buttons, status badges, cards, dialogs, pagination, empty states, and error handling. Every visible control must perform a real action or clearly be disabled with an explanation. Do not leave decorative links, dead buttons, fake selectors, or forms that only update local state without saving.
+
+### 8. Authentication and user session
+
+Implement:
+
+- Sign-in with email and password.
+- Registration with full name, email, and password.
+- Session bootstrap using `GET /api/auth/me`.
+- Sign-out.
+- Protected route handling for authenticated pages.
+- Admin-only route handling and controls based on the real user role returned from the backend.
+- Session expiry and `401` handling: clear invalid session state and return to sign-in with a concise explanation.
+- Loading, validation, pending, and server-error states.
+
+Registration must never offer a role selector. The server assigns `user`. Do not expose passwords, JWTs, or secret configuration in logs.
+
+Use a single documented session/token-storage approach that avoids unnecessary persistence. The frontend must never assume its role checks replace backend authorization.
+
+A major API constraint is that the current vehicle read routes require authentication. Do not call protected catalogue endpoints anonymously just because the home page is available to visitors. The unauthenticated home should render a graceful Creaseline hero and sign-in/browse CTA; show featured API-fed vehicles only when a valid session exists. After login, the home can show actual featured catalogue entries from the backend.
+
+### 9. Build the required user-facing pages
+
+Implement all these pages with real backend data and working navigation.
+
+**Home.** Use the Creaseline pinboard-style hero and selected vehicle area. Use real API-backed vehicles only when authenticated. Do not invent live metrics, vehicle counts, dealership floor value, sales totals, dates, or badges. Show graceful loading, empty, and error states. The main CTA should lead to `Browse vehicles`.
+
+**Vehicle catalogue.** Implement search, category filter, min/max price, availability, sorting, pagination, result count, clear-filters, no-results, loading, empty, and error states. Use the documented query parameters where supported: `page`, `limit`, `search`, `categoryId`, `minPrice`, `maxPrice`, `available`, `sort`, and `direction`. Reset pagination when filters change, and keep URL search parameters synchronized if that fits the existing router.
+
+**Vehicle cards.** Show only supported vehicle data: image, make, model, category if returned, current INR price, available quantity, and availability status derived from real quantity and deletion state. Low-stock status must be based on `quantity > 0 && quantity <= lowStockThreshold`; zero stock must show `Out of stock`. Use `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 })`. Respect price strings returned from PostgreSQL, and do not calculate authoritative checkout totals in floating-point arithmetic.
+
+Provide appropriate `View details`, `Add to cart`, `Purchase now`, and favourite actions depending on authentication and availability. Add-to-cart must be disabled or rejected when stock is zero. Direct purchase must also be disabled at zero stock in the UI, while the backend remains the security and stock-integrity boundary.
+
+**Vehicle detail.** Display actual make/model/category, current price, current stock, stock threshold status, favourite state, and available actions. Use ordered image records returned by the backend. Show the lowest `displayOrder` image first, then other images from the same vehicle. Do not create fake technical specifications or display the dataset's lookup year as an actual product specification. If no model-matched image exists, use a neutral local Creaseline fallback with useful alt text.
+
+**Cart.** Read the real user's cart from the API. There is one item per distinct vehicle and no quantity selector. Display live current price and stock, server-returned subtotal, item removal, clear-cart, and a clear explanation that adding an item does not reserve inventory. Keep unavailable or deleted entries visible with an explanation and allow their removal. Show loading, empty, error, and pending states.
+
+**Checkout review.** Show the exact cart contents, current prices, availability, and server-derived subtotal before purchase. The backend checkout expects a request ID and a list of the exact confirmed cart items with their current vehicle IDs and decimal price strings. Create a UUID request ID for a new intended checkout and reuse the same key for a retry of that operation after an uncertain network failure. Never create a new request ID for each network retry.
+
+If a checkout returns `409` because the stock, price, or cart selection changed, refresh the cart, clearly describe the conflict, and require the user to review the new state. Never show a successful-purchase animation or success message when the API failed. After success, show the server-returned purchase ID, item snapshots, total, and confirmation state.
+
+**Direct purchase.** Keep `POST /api/vehicles/:id/purchase` separate from cart checkout. Generate one request ID per intended purchase, reuse it for an exact retry, and display a real success state from the returned purchase. Prevent accidental duplicate submissions and refresh displayed stock after success.
+
+**Favourites.** Implement actual `GET`, `PUT`, `DELETE`, and notification-preference APIs. Show saved vehicles, current stock/price, and an explicit per-vehicle restock alert toggle. A zero-stock vehicle can be favourited. Toggling the restock preference must persist to the backend. Handle loading and errors and do not silently revert a saved preference after a failed request.
+
+**Notifications.** Implement the paginated notification inbox with newest-first records, unread/read states, the actual unread count, and individual mark-read behavior. Use `PATCH /api/notifications/:id/read`. Do not add a mark-all-read button because the current API has no such route. Handle polling or refresh only if needed and avoid creating excessive requests. If the UI polls, clean up timers when the page unmounts and do not poll after sign-out.
+
+**Purchase history.** Inspect the backend first. If a personal purchase-history endpoint already exists, use it. If it does not exist, do not fabricate purchase history or infer it from current inventory. Since a real purchase-history screen is part of completing the user workflow, add a narrowly scoped authenticated `GET /api/purchases` endpoint with pagination and TDD if necessary. It must return only the current authenticated user's purchase headers and purchased item snapshots, ordered newest first. It must never expose all users' purchases to a normal user. Add real PostgreSQL integration tests and document the contract.
+
+### 10. Build the admin inventory workflow
+
+Implement admin-only navigation and pages. The server remains the authority for permission checks.
+
+**Inventory overview.** Show only real metrics from a dedicated API or data that genuinely supports the displayed label. Do not label a visible-page subtotal as the entire dealership's inventory. Do not fabricate sales or revenue statistics. If this overview needs aggregate values that are not exposed by existing APIs, add a minimal authenticated/admin-authorized backend summary endpoint with tests; it may report actual counts of active vehicle stock lines, in-stock lines, low-stock lines, out-of-stock lines, and total units only if those values are computed correctly from PostgreSQL.
+
+**Inventory management.** Provide a usable table/grid of vehicles with search, filtering, sorting, pagination, stock indicators, view/edit, restock, and soft-delete operations. Hide management controls from normal users. Include clear feedback for `401`, `403`, `404`, `409`, and server errors.
+
+**Create/edit vehicle form.** Use supported backend fields only: make, model, category ID, price, low-stock threshold, plus initial quantity for creation where permitted by the API. Existing update routes cannot directly edit quantity; do not expose a normal edit field that bypasses the stock workflow. Use a category dropdown populated from the actual backend, not a hardcoded array that disagrees with the database.
+
+**Restock dialog.** Validate a positive integer, generate a request UUID, call the real admin restock endpoint, display the returned stock, and handle exact retries safely.
+
+**Soft-delete confirmation.** Explain that deleting a vehicle removes its active listing through soft deletion. It should not imply the vehicle's previous purchase records are erased. After deletion, refresh the inventory and provide useful success/error feedback.
+
+**Stock history.** The current data model has `stock_receipts`, but the existing API may not expose a read endpoint. If the route is still missing, add a narrowly scoped admin-only paginated endpoint, for example `GET /api/vehicles/:id/stock-receipts` or an equivalent documented path. Test it against PostgreSQL and show the actual opening/restock receipt ledger. Do not fake receipt rows or provide unrestricted audit data to normal users.
+
+**Vehicle image management.** Audit whether the current API supports creating, ordering, and removing image-reference rows. Do not render image-management controls that cannot persist. If the final admin design requires image management, add small admin-only APIs for image-reference CRUD/order with strict validation and tests. Do not expose the carimage.dev API key to the browser or build a browser-side image-provider client. The initial image catalogue is already seeded through the backend script; do not rebuild image generation inside the frontend.
+
+### 11. Close necessary backend API gaps before wiring their screens
+
+Inspect the actual branch and route modules before declaring an endpoint missing. The supplied API contract lists these known gaps: category listing, image management, personal purchase history, stock-receipt history, admin aggregate metrics, and mark-all-notifications-read. The frontend must not call fictional APIs.
+
+For a complete functional application, add the backend capabilities that are necessary for the pages above:
+
+- An authenticated vehicle-category listing endpoint, for example `GET /api/vehicle-categories`, for catalogue filtering and admin forms.
+- A self-only, paginated purchase-history endpoint if one is not already available.
+- An admin-only stock-receipt history endpoint if a stock-history screen is implemented.
+- A correct admin inventory summary endpoint if the design presents aggregate metrics that cannot be truthfully derived from an existing API.
+- Image-reference management endpoints only if the chosen admin interface actually exposes those controls.
+
+For every new backend endpoint, use TDD first, protect its access server-side, use parameterized SQL, validate IDs/filters/pagination, test with PostgreSQL, and document the final DTO. Preserve existing API contracts and business rules unless the actual audit proves a change is necessary. Do not add a mark-all-read API merely to show another button; individual read status is sufficient.
+
+### 12. Create one shared typed API client
+
+Build a typed client layer under `frontend/src/api/`. Do not scatter raw `fetch()` calls across page components.
+
+Use one configurable `VITE_API_BASE_URL`, with a documented local development default. Prefer the existing Vite proxy if that is the simplest safe setup; whichever option you choose must work for the root workspace and be documented. Relative image URLs such as `/images/vehicles/example.webp` must resolve to the correct backend host when needed.
+
+The API client should:
+- Add JSON headers when appropriate.
+- Attach the bearer token on protected requests.
+- Parse successful responses into typed values.
+- Parse backend error bodies into a consistent client error.
+- Handle network failures, malformed responses, and `401` expiry safely.
+- Preserve `409` conflict details so the checkout UI can refresh and explain them.
+- Never log JWTs, passwords, API keys, or complete authorization headers.
+
+Do not invent DTOs without inspecting the backend route/service response shape. Confirm the actual JSON field names, pagination structure, category fields, image shape, decimal price format, and error response schema against the local implementation. Update types and backend API documentation where required.
+
+The only public `VITE_*` setting should be the frontend API base URL. `CAR_IMAGE_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, Kaggle credentials, and other secrets must remain server-side. Never expose the image API key in the frontend bundle or generated source maps.
+
+Use an actual local placeholder for unavailable vehicle images. The fallback should not claim to depict a specific make/model. The absence of an image must never crash a card, cause an infinite loading spinner, or block catalogue browsing.
+
+### 13. Testing setup and mandatory TDD execution
+
+Inspect whether the frontend has a test runner. The current frontend may only be a minimal React scaffold. If the necessary testing tools do not exist, add a small, compatible setup for Vitest, a DOM test environment, and React Testing Library/user-event. Do not replace the project's build tools or bring in a large testing framework unnecessarily.
+
+Use visible Red-Green-Refactor development for every meaningful new behavior. The sequence is mandatory:
+
+1. Add one focused test for an intended behavior.
+2. Run it and observe the expected failure.
+3. Commit the failing test as a focused RED commit.
+4. Implement the smallest correct change.
+5. Run the relevant test and confirm it passes.
+6. Commit the implementation as a separate GREEN commit.
+7. Refactor only if there is a real improvement to make, and only with tests passing.
+
+Do not create an entire frontend first and add tests afterward. Do not group every frontend and backend test into one giant RED commit. Do not deliberately break working behavior merely to manufacture a failing test. Do not claim RED was observed without running the test and seeing the expected failure. If an existing behavior already meets the requirement, add meaningful missing coverage or document that no fix was needed.
+
+Use small vertical slices and follow this suggested order:
+
+- API client and error handling.
+- Authentication/session bootstrap and protected routes.
+- Catalogue data fetching, search/filter/pagination, stock state and image fallback.
+- Vehicle detail and favourites.
+- Cart API integration, add/remove/clear, count and server subtotal.
+- Direct purchase and checkout idempotency/conflict behavior.
+- Notifications and mark-read.
+- Admin inventory forms, restock and soft deletion.
+- Any missing backend category, purchase-history, stock-history, summary, or image-management endpoints, each with tests before implementation.
+- Responsive layout, accessibility, animation, and final regression checks.
+
+Add meaningful tests at each step. The minimum frontend behavior coverage must include:
+- API client authorization headers, base URL, 401 behavior, error parsing, and 409 conflict handling.
+- Sign-in, registration validation, session bootstrap, and sign-out.
+- Authenticated-only catalogue calls and protected-route behavior.
+- Search, filter, pagination, clear-filter, loading, empty, error and retry states.
+- Vehicle cards using live API data, currency formatting, low/zero-stock indicators, and image fallbacks.
+- Purchase disabled when stock is zero.
+- Add-to-cart success and failure; fold animation only after the server confirms the add.
+- Cart total from server values, remove/clear, stale availability and price conflict handling.
+- Same idempotency request ID reused for a genuine retry.
+- Checkout success versus failure, without false success messages.
+- Favourites persistence and notification preference toggle.
+- Notification pagination, unread state, and mark-single-read.
+- Admin controls and routes hidden/blocked for normal users.
+- Create/edit/restock/delete validation, pending state and errors.
+- Any new backend endpoint's authorization, validation and PostgreSQL behavior.
+
+Mock API responses in component tests, but use the dedicated real PostgreSQL `_test` database for backend transaction, migration, authorization, query and inventory tests. Ordinary frontend tests must not use the live development database or call carimage.dev.
+
+### 14. Responsive design and interaction quality
+
+Implement the desktop, tablet and mobile layouts as real responsive React components. A desktop catalogue should have clear editorial hierarchy, search/filter controls, and a readable vehicle grid. Admin inventory can use a denser table/grid hybrid with useful column alignment. Mobile must remain usable, with the supplied bottom-navigation concept and no horizontal overflow.
+
+Implement responsive menus, accessible dialogs, search/filter interactions, keyboard-operable dropdowns, labelled inputs, visible focus states, error summaries where useful, and disabled/pending button states. Use semantic HTML and good contrast.
+
+The add-to-cart paper-fold animation must only occur after a successful API response. A failed request must show a real error and not visually imply that an item was added. Respect `prefers-reduced-motion`; do not make animations necessary for use of the application.
+
+No decorative control should be inert. If an operation is unsupported, either implement the necessary backend API with tests, or clearly omit/disable that function with a truthful explanation. Do not silently replace a missing server capability with local-only state.
+
+### 15. Dataset-aware UI rules
+
+Integrate the data already seeded by Gemini, if the audit confirms it is valid. Do not re-import the entire CSV unnecessarily or reset existing stock while implementing the frontend.
+
+Use only make, model, category, price, current quantity, low-stock threshold, and real persisted image records. Do not display the ignored synthetic technical fields as true car specifications. Do not show the source dataset year as a vehicle specification while the actual API/schema doesn't expose it.
+
+For imagery, use the URL and alt text returned from the actual `vehicle_images` data. Use the lowest `displayOrder` as cover. If a vehicle has no image, use the neutral local fallback; do not display a different car and imply it is the exact model.
+
+All stock values, cart items, prices, favourites, notifications, and purchase history shown as live data must originate from the backend. Empty states may contain helpful explanatory copy, but they must not pretend that fake sample rows are real inventory.
+
+Do not show unsupported shipping, reservation, financing, certification, vehicle-condition, VIN, payment-success, payment-method or delivery-tracking features. This project records inventory purchases, not payments. Do not invent recent purchases, dealership-wide stock totals, revenue totals, or fake live times. If admin summary data is needed, implement it server-side and test it.
+
+### 16. Local run workflow and root scripts
+
+I want a clear way to run the entire project locally after setup. Inspect and improve the root workspace scripts so there is a reliable single command to start the backend and frontend together, if this can be done with a small cross-platform script or a minimal justified dependency. Do not replace existing scripts unnecessarily.
+
+Document the actual commands for Windows PowerShell, including:
+- Dependency installation.
+- Starting PostgreSQL using the existing Docker Compose setup.
+- Applying migrations.
+- Running vehicle seed data if the current local database has not been seeded.
+- Confirming that existing vehicle/image data is already seeded without resetting it.
+- Starting the full application from the repository root.
+- Running the backend tests and frontend tests.
+- Building the complete workspace.
+
+The existing local database may already contain seeded vehicles, receipts, and images. Do not blindly run seed commands that reset stock or unnecessarily query carimage.dev. The first-run workflow must be clear, but an already-seeded database must remain intact. If `npm run db:seed` includes image API calls, verify whether it safely skips complete cached rows before recommending it. Never run an image seeder blindly during final verification.
+
+Keep environment configuration at the established location. Update `.env.example` only with empty/non-secret placeholders. Keep the image API key, JWT secret, and database credentials out of Git. Ensure `npm run build`, `npm test`, the frontend test command, migration command, seed command, and the final combined development command behave as documented.
+
+### 17. Regression, security, and data protection
+
+Preserve all existing backend functionality:
+- Registration and login.
+- Password hashing and JWT authentication.
+- Admin authorization.
+- Vehicle creation, listing, filtering, search, pagination, update and soft deletion.
+- Restock and opening-stock receipt history.
+- Direct purchase and transactional cart checkout.
+- Idempotency and concurrency handling.
+- Favourites and targeted notifications.
+- Test database isolation.
+
+Do not let UI code bypass the backend or modify stock locally as if a purchase had succeeded. Do not trust client role, price, stock or total values. Do not expose another user's cart, purchase history, favourites or notifications. The backend must remain the permission boundary for every protected operation.
+
+Never run destructive tests against the development database. Never use `docker compose down -v`. Do not drop or recreate database volumes. Don't delete existing seeded data to obtain a cleaner screenshot or easier test.
+
+### 18. Dataset, image integration and frontend documentation
+
+Update `README.md` and `frontend/README.md` with the real project layout, seed data source, dataset limitations, image-provider limitations and licence notes, image fallback strategy, API base URL, user/admin workflows, frontend route map, environment setup, and verified local-run commands.
+
+Document any extra backend endpoints you added, with the actual request/response contracts and access requirements. Mark unsupported features clearly rather than claiming they work.
+
+Append the complete prompt I am giving you now verbatim to the existing `PROMPTS.md` under a clear heading. Continue preserving future prompts exactly as submitted, not as a summary or paraphrase. I will provide original AI chat transcripts or allowed public chat links at the end, so don't claim that the prompt file alone satisfies the raw-conversation requirement.
+
+### 19. Commit and Git rules
+
+Keep the current local commit history and unpushed work intact. Use focused RED/GREEN commits for new test-backed behavior, and separate documentation commits where appropriate. Follow the assignment's AI co-author rules, using `Co-authored-by: Codex <noreply@openai.com>` when appropriate, with a blank line before the trailer. Do not invent AI identities.
+
+Do not commit `.env`, secrets, real credentials, irrelevant raw datasets, node_modules, build output, or other local files that should remain ignored. Do not add unrelated changes. Stage only the files belonging to the commit being created.
+
+Do not push anything to GitHub. Do not fetch/pull/merge/rebase/reset/squash/amend or force-push as part of this task. The project has local commits that are intentionally not pushed; continue from the current local state.
+
+### 20. Final verification and completion report
+
+Do not stop after auditing or producing a plan. Complete the dataset/image audit and correction first, then implement the frontend and any necessary backend API gaps. Only stop to ask me for input if the UI pack cannot be accessed or there is a genuine blocker that cannot safely be resolved.
+
+Run the focused test after each RED and GREEN change. At the end:
+- Run the full backend test suite against the dedicated PostgreSQL `_test` database.
+- Run the frontend test suite.
+- Run the backend build and full root build.
+- Run `git diff --check`.
+- Verify database migrations remain up to date and idempotent.
+- Verify seed scripts don't duplicate records or reset existing inventory.
+- Verify existing local vehicle, opening-stock receipt, and image rows are consistent.
+- Verify the local image HTTP path and frontend URL resolution.
+- Start the backend and frontend together using the documented command.
+- Verify backend health and the main end-to-end route flow to the extent the local test environment permits.
+- Report tests or manual browser checks that could not actually be performed rather than claiming they passed.
+- Verify no frontend bundle or client environment contains the image API key.
+- Confirm the frontend now uses actual backend data and that no fake live inventory or unsupported actions remain.
+- Confirm the final `git status --short --branch` and that nothing was pushed.
+
+At completion, provide a concise but complete report including the dataset audit findings, actual vehicle/image counts, files corrected, frontend pages and behaviors implemented, any new backend API endpoints, RED/GREEN/REFACTOR commit IDs, test/build results, local run commands, unimplemented or unverified items, remaining risks, and the final Git status.
+
+The objective is a cohesive Creaseline application I can run locally and walk through end to end, not just a styled homepage. Finish the work thoroughly and keep the existing backend integrity, data, and visible TDD history intact.

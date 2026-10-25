@@ -1,6 +1,6 @@
 # Car Dealership Inventory System
 
-The Incubyte full-stack kata for a shared, login-protected vehicle catalogue. The TypeScript/Express backend includes PostgreSQL health checks, migrations, authentication, authorization, and vehicle inventory APIs. The React/Tailwind frontend currently provides the application scaffold; inventory screens are not implemented yet.
+**Creaseline** is the completed Incubyte full-stack kata: a shared, login-protected vehicle catalogue with a TypeScript/Express/PostgreSQL backend and a responsive React 19/Vite/Tailwind frontend. It supports the real catalogue, detail, cart, direct purchase, checkout, favourites, notification, purchase-history, and admin inventory workflows described below.
 
 ## Product and assignment scope
 
@@ -43,6 +43,7 @@ Run `npm install` once from the repository root. The root npm workspace then pro
 | Command | Purpose |
 |---|---|
 | `npm test` | Run all backend unit and PostgreSQL integration tests |
+| `npm run test:frontend` | Run the frontend Vitest/Testing Library suite |
 | `npm run build` | Build the backend and frontend |
 | `npm run build:backend` | Build only the backend |
 | `npm run build:frontend` | Build only the frontend |
@@ -52,9 +53,10 @@ Run `npm install` once from the repository root. The root npm workspace then pro
 | `npm run db:seed` | Run vehicle seeding followed by image seeding |
 | `npm run dev:backend` | Run the backend in watch mode on port 3000 by default |
 | `npm run dev:frontend` | Run the frontend development server on port 5173 by default |
+| `npm run dev` | Start the backend and frontend together; Ctrl+C stops both |
 | `npm start` | Start the compiled backend |
 
-The frontend development server proxies `/api` and `/health` to `http://localhost:3000`. It communicates with PostgreSQL only through the backend HTTP API.
+The frontend development server proxies `/api`, `/health`, and `/images` to `http://localhost:3000`. It communicates with PostgreSQL only through the backend HTTP API. Set the optional public `VITE_API_BASE_URL` only when the API is hosted on another origin; no server secret may use a `VITE_*` name.
 
 ## Database overview
 
@@ -299,6 +301,10 @@ Authenticated catalogue reads exclude soft-deleted vehicles:
 | `DELETE /api/vehicles/:id` | Admin | Soft-delete a stock line |
 | `POST /api/vehicles/:id/restock` | Admin | Atomically add stock and record an idempotent receipt |
 | `POST /api/vehicles/:id/purchase` | Authenticated | Buy one unit immediately |
+| `GET /api/vehicle-categories` | Authenticated | List persisted categories for filters and forms |
+| `GET /api/purchases?page=1&limit=20` | Authenticated | Current user's purchase headers and immutable item snapshots |
+| `GET /api/vehicles/:id/stock-receipts` | Admin | Paginated opening/restock ledger for one vehicle |
+| `GET /api/admin/inventory-summary` | Admin | Active lines, in/low/out-of-stock lines, and total units |
 
 List query parameters are `page` (default 1), `limit` (default 20, maximum 100), `search` (make or model), `categoryId`, `minPrice`, `maxPrice`, `available`, `sort` (`make`, `model`, `price`, `quantity`, or `createdAt`), and `direction` (`asc` or `desc`). Responses contain `vehicles` and `{page, limit, total, totalPages}` pagination metadata.
 
@@ -375,20 +381,45 @@ The catalogue data is sourced from real-world and curated industry datasets, whi
 ### 1. Vehicle dataset (Car Data India)
 
 - **Source:** Kaggle (`namanarora21/car-data-india-market-usage-and-body-type-insights`).
-- **Raw data characteristics:** 10,000 raw rows with 19 columns. An initial automated inspection revealed 4 corrupted/invalid rows (missing body types or negative prices).
+- **Raw data characteristics:** 10,000 raw rows with 19 columns. The verified cleaner reports 20 skipped rows: 8 missing/non-positive prices, 7 missing required brand/model/body fields, and 5 missing/invalid years.
 - **Catalogue deduplication:** The raw records contain multiple synthetic entries per vehicle model across different model years and fuel types. The pipeline normalizes whitespace, standardizes casing (e.g. `maruti suzuki` -> `Maruti Suzuki`), and groups rows by unique `(Brand, Model)` pairs, yielding 50 distinct valid make/model combinations.
-- **Curated catalogue:** A balanced catalogue of 35 diverse vehicle models was selected across 10 major manufacturers (`Honda`, `Hyundai`, `Kia`, `Mahindra`, `Maruti Suzuki`, `MG`, `Renault`, `Skoda`, `Tata Motors`, `Toyota`) and 6 canonical vehicle categories (`Sedan`, `SUV`, `Hatchback`, `Coupe`, `Convertible`, `MPV`).
+- **Curated catalogue:** The deterministic seed contains 35 unique make/model stock lines across 10 manufacturers and the five body categories actually present in the source sample (`Sedan`, `SUV`, `Hatchback`, `Coupe`, and `Convertible`). The seeder adds the full canonical category set for future inventory but does not fabricate missing categories into the sample.
 - **Stock & reconciliation:** Each model is assigned a realistic opening quantity (including both in-stock units and zero-stock listings). When seeded via `npm run db:seed:vehicles`, vehicles with positive opening quantity automatically generate an initial `opening` receipt in `stock_receipts` associated with a system administrator identity, maintaining the audit invariant `current quantity = SUM(receipt additions) - COUNT(completed purchases)`.
-- **Licence & attribution:** Open Database / Database Contents licence for evaluation and demo use.
+- **Limitations and attribution:** The supplied CSV is synthetic and only make, model, body type, price, and the year used for image lookup are accepted. Year and the source's technical/ownership/accident columns are not product specifications. Keep the raw CSV local under `reference-docs/`; confirm its source licence before redistribution.
 
 ### 2. Vehicle images (carimage.dev)
 
 - **Provider:** `carimage.dev` studio-render image API.
-- **Licence:** Evaluation and personal kata project tier (100 credits granted upon signup). Commercial production requires a Pro subscription.
+- **Licence:** The current [pricing](https://carimage.dev/pricing) and [terms](https://carimage.dev/terms) say Free is for evaluation and personal, non-commercial projects; commercial use requires a paid plan. Provider renders are illustrations that can contain inaccuracies, not manufacturer-approved photographs. The cached files in this repository are therefore not presented as commercially cleared assets.
 - **Authentication & security:** Configured through the `CAR_IMAGE_API_KEY` environment variable. The key is never logged, exposed in client URLs, or committed to Git. Requests are authenticated server-side using the `Authorization: Bearer <key>` header.
 - **Local caching:** When an image is fetched, binary WebP data is saved locally to `backend/public/images/vehicles/` and served via static route `/images/vehicles/`. Subsequent seed runs and API responses reuse the cached local assets, preserving API credit quotas and enabling offline functionality.
 - **Accessibility:** Accessible alternative text is dynamically formatted as `${year} ${make} ${model}, front three-quarter view` and persisted in `vehicle_images.alt_text`.
 - **Seeding:** `npm run db:seed:images` queries vehicles lacking a cover image (`display_order = 0`) and fetches up to 30 studio-render images safely within evaluation limits.
+
+The verified development database contained 35 active vehicles, 27 opening receipts, and 16 valid local WebP/image rows, with no stock reconciliation mismatch or broken file reference. Do not run `npm run db:seed:images` during ordinary startup: it can consume provider credits. `npm run db:seed:vehicles` is idempotent and never resets an existing active stock line, but should only be used for an unseeded development database.
+
+## Local Creaseline workflow (PowerShell)
+
+```powershell
+npm install
+Copy-Item .env.example .env       # then set local secrets/passwords
+npm run db:up
+npm run migrate
+# First run only, when GET /api/vehicles confirms no catalogue:
+npm run db:seed:vehicles
+npm run dev
+```
+
+Open the Vite URL (normally `http://localhost:5173`). Registering creates a normal user. Admin access must be assigned in PostgreSQL by an authorized operator; there is deliberately no role selector. Existing seeded data is reused. The frontend routes are `/`, `/sign-in`, `/register`, `/vehicles`, `/vehicles/:id`, `/cart`, `/favourites`, `/notifications`, `/purchases`, and admin-only `/admin`.
+
+Final verification commands:
+
+```powershell
+npm run test:backend
+npm run test:frontend
+npm run build
+git diff --check
+```
 
 ## My AI Usage
 
