@@ -20,6 +20,7 @@
     "db:seed:vehicles": "npm run db:seed:vehicles --workspace backend",
     "db:seed:images": "npm run db:seed:images --workspace backend",
     "db:seed": "npm run db:seed --workspace backend",
+    "db:create-admin": "npm run db:create-admin --workspace backend",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f db"

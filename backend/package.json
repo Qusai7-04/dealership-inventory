@@ -9,7 +9,8 @@
     "migrate": "npm run build --silent && node dist/migrate.js",
     "db:seed:vehicles": "tsx src/scripts/seed-vehicles.ts",
     "db:seed:images": "tsx src/scripts/seed-images.ts",
-    "db:seed": "npm run db:seed:vehicles && npm run db:seed:images"
+    "db:seed": "npm run db:seed:vehicles && npm run db:seed:images",
+    "db:create-admin": "tsx src/scripts/create-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
