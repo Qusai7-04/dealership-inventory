@@ -503,3 +503,36 @@ Then:
 Do not commit, push, install PostgreSQL, or implement the backend/frontend. I will review and commit the changes manually.
 
 At the end, provide a concise summary of the changes, the checks performed, anything skipped or not checked, and any remaining risks.
+
+### Session: PostgreSQL connection and initial schema migrations (2026-10-25)
+
+I am working on my Incubyte Car Dealership Inventory System project in my local Windows environment. The GitHub repository is https://github.com/Qusai7-04/dealership-inventory.
+I want you to guide me through the next steps carefully, verify everything before making changes, and help me complete the PostgreSQL setup and connect it to my existing backend. Work step by step and do not skip ahead.
+
+Current project status:
+The project uses Node.js, TypeScript, Express, PostgreSQL, and the pg package.
+The backend foundation is already implemented.
+GET /health works.
+npm scripts for development, build, start, and test are configured.
+A Vitest/Supertest health test exists.
+Previously, npm test, npm run build, and the health endpoint check passed.
+The changes have already been committed and pushed to GitHub. The latest Git status previously showed main...origin/main with a clean working tree.
+Database migrations, authentication, inventory routes, and the frontend have not yet been implemented.
+
+My PostgreSQL installation status:
+PostgreSQL 18 is installed on Windows.
+The Windows service postgresql-x64-18 is running.
+The executable exists at C:\Program Files\PostgreSQL\18\bin\psql.exe.
+However, psql --version initially failed because the executable was not on PATH.
+I have been instructed to add C:\Program Files\PostgreSQL\18\bin to my user PATH, open a new PowerShell window, and verify the installation.
+I still need to confirm that psql --version works and that I can connect to the local PostgreSQL server using psql -U postgres -h localhost -p 5432.
+
+Your task:
+Step 1: Verify my environment
+Step 2: Inspect the existing repository
+Step 3: Plan the database connection
+Step 4: Implement and test the connection
+Step 5: Create the initial database migrations
+Step 6: Verify everything
+Step 7: Git commits and GitHub pushes
+Step 8: Update project documentation

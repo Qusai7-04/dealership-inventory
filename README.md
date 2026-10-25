@@ -183,11 +183,16 @@ Cart additions and favourites never change stock. Cart checkout is all-or-nothin
    ```
 
 3. When backend configuration exists, put a connection string such as `DATABASE_URL=postgresql://dealership_app:<choose-a-local-password>@localhost:5432/dealership_inventory` in a local, uncommitted environment file or secret store. URL-encode special password characters. Never commit credentials.
-4. Verify the new database with `psql -h localhost -U dealership_app -d dealership_inventory -c "SELECT current_database(), current_user;"`. PostgreSQL will prompt for the password. The application schema is **not present yet**. When migrations are implemented, their actual command and migration path will be documented here; then verify with `psql -h localhost -U dealership_app -d dealership_inventory -c "\dt"` and inspect constraints using `\d+ table_name` inside `psql`.
+4. Verify the new database with `psql -h localhost -U dealership_app -d dealership_inventory -c "SELECT current_database(), current_user;"`. PostgreSQL will prompt for the password.
+5. Apply the database migrations with `npm run migrate`. The migration runner applies SQL scripts from `migrations/` in transactional order and records them in `schema_migrations`. Then verify with `psql -h localhost -U dealership_app -d dealership_inventory -c "\dt"` and inspect constraints using `\d+ table_name` inside `psql`.
 
 ## Backend foundation
 
-Run `npm install`, then `npm run dev` for development or `npm run build` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it. `GET /health` returns `{"status":"ok"}` and does not require PostgreSQL. Run `npm test` for the health endpoint test. PostgreSQL migrations and database connection setup will be added with the first schema change; there is no migration command yet.
+Run `npm install`, then `npm run dev` for development or `npm run build` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it.
+- `GET /health` returns `{"status":"ok"}` (liveness check, does not require PostgreSQL).
+- `GET /health/db` checks live database connectivity via `SELECT 1;` and returns `{"status":"ok","database":"connected"}` or `503` if unreachable.
+- Run `npm test` to execute the unit and integration test suite.
+- Run `npm run migrate` to apply pending PostgreSQL schema migrations.
 
 ## My AI Usage
 

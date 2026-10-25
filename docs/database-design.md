@@ -197,4 +197,4 @@ Admin vehicle deletion sets `deleted_at`, preserving receipts and purchase histo
 
 ## Open decisions before implementation
 
-The backend uses Node.js/TypeScript with Express and `pg`; no schema migration exists yet. The active make/model identity assumes the model label includes any meaningful variant; separate year or trim fields would require a revised uniqueness rule. Email verification has no workflow yet, so `is_verified` does not block login. Resolve these choices before writing migrations or authentication behavior.
+The backend uses Node.js/TypeScript with Express and `pg`; initial migrations exist for `users`, `vehicle_categories`, and `vehicles` in `migrations/001_create_users_categories_vehicles.sql`. The active make/model identity assumes the model label includes any meaningful variant; separate year or trim fields would require a revised uniqueness rule. Email verification has no workflow yet, so `is_verified` does not block login. Resolve these choices before writing authentication behavior.
