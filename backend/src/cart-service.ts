@@ -31,6 +31,11 @@ export async function addCartItem(userId: string, input: unknown) {
     const cart = await client.query<{ id: string }>(
       'INSERT INTO carts (user_id) VALUES ($1) ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id RETURNING id', [userId]
     );
+    const existing = await client.query('SELECT 1 FROM cart_items WHERE cart_id = $1 AND vehicle_id = $2', [cart.rows[0].id, id]);
+    if (existing.rowCount) {
+      await client.query('COMMIT');
+      return getCart(userId);
+    }
     const vehicle = await client.query<{ quantity: number; deleted_at: Date | null }>('SELECT quantity, deleted_at FROM vehicles WHERE id = $1 FOR UPDATE', [id]);
     if (!vehicle.rows[0] || vehicle.rows[0].deleted_at) throw new AppError(404, 'Vehicle not found');
     if (vehicle.rows[0].quantity <= 0) throw new AppError(409, 'Vehicle is out of stock');
