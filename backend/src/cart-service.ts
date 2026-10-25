@@ -43,3 +43,18 @@ export async function addCartItem(userId: string, input: unknown) {
     throw error;
   } finally { client.release(); }
 }
+
+export async function removeCartItem(userId: string, vehicleId: string) {
+  await query(
+    'DELETE FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE user_id = $1) AND vehicle_id = $2',
+    [userId, validateVehicleId(vehicleId)]
+  );
+  await query('UPDATE carts SET updated_at = now() WHERE user_id = $1', [userId]);
+  return getCart(userId);
+}
+
+export async function clearCart(userId: string) {
+  await query('DELETE FROM cart_items WHERE cart_id = (SELECT id FROM carts WHERE user_id = $1)', [userId]);
+  await query('UPDATE carts SET updated_at = now() WHERE user_id = $1', [userId]);
+  return getCart(userId);
+}
