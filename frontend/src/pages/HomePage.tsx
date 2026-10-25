@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
-import { VehicleCard } from '../features/vehicles/VehicleCard';
+import { VehicleCard, formatPrice } from '../features/vehicles/VehicleCard';
+import { VehicleImage } from '../components/VehicleImage';
 import { addVehicleToCart, purchaseVehicle, saveVehicle } from '../features/vehicles/actions';
 import type { Category, Vehicle, VehicleListResponse } from '../types/api';
 
@@ -10,6 +11,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const [featured, setFeatured] = useState<Vehicle[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function HomePage() {
       .then(([res, catRes]) => {
         if (!active) return;
         setFeatured(res.vehicles ?? []);
+        setTotalCount(res.pagination?.total ?? null);
         setCategories(catRes.categories ?? []);
       })
       .catch(() => {
@@ -232,7 +235,9 @@ export function HomePage() {
             </div>
             <div>
               <span className="font-stamp-badge text-stamp-badge text-ink-subtle uppercase">MODELS CATALOGUED</span>
-              <div className="font-price-lg text-headline-md font-bold text-ink-solid">35 ACTIVE</div>
+              <div className="font-price-lg text-headline-md font-bold text-ink-solid">
+                {totalCount !== null ? `${totalCount} ACTIVE` : '35 ACTIVE'}
+              </div>
               <p className="font-data-mono text-[11px] text-ink-muted mt-0.5">100% physically inspected & dyno certified</p>
             </div>
           </div>
@@ -321,16 +326,106 @@ export function HomePage() {
               <p className="font-body-sm text-ink-muted mt-1">Please check back shortly or access the admin console.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featured.map((vehicle) => (
-                <VehicleCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  onAddToCart={(item) => addVehicleToCart(api, item)}
-                  onFavourite={(item) => saveVehicle(api, item)}
-                  onPurchase={(item) => purchaseVehicle(api, item)}
-                />
-              ))}
+            <div className="flex flex-col gap-10">
+              {/* Atelier Bay-Window Showcase Carousel */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between pb-2 border-b border-ink-solid/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-action-blue" />
+                    <span className="font-stamp-badge text-[11px] uppercase tracking-wider text-action-blue font-bold">
+                      BAY-WINDOW EXPOSÉ // HOVER TO EXPAND SPECIMEN
+                    </span>
+                  </div>
+                  <span className="font-data-mono text-xs text-ink-muted hidden sm:inline">
+                    INTERACTIVE CHASSIS EXPANSION
+                  </span>
+                </div>
+
+                <div className="bay-window-rail flex flex-col md:flex-row gap-3.5 h-auto md:h-96 w-full overflow-x-auto pb-2 snap-x snap-mandatory">
+                  {featured.slice(0, 5).map((v, idx) => {
+                    const cover = [...v.images].sort((a, b) => a.displayOrder - b.displayOrder)[0];
+                    return (
+                      <div
+                        key={v.id}
+                        className="bay-window-card relative flex-1 min-w-[280px] md:min-w-0 md:hover:flex-[2.6] transition-all duration-500 ease-out rounded-xl border-[1.5px] border-ink-solid overflow-hidden bg-paper-surface shadow-[0_4px_0_#16150F] hover:shadow-[0_8px_0_#16150F] group flex flex-col justify-end cursor-pointer snap-center"
+                        onClick={() => navigate(`/vehicles/${v.id}`)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') navigate(`/vehicles/${v.id}`);
+                        }}
+                        aria-label={`Inspect ${v.make} ${v.model} chassis details`}
+                      >
+                        {/* Background Vehicle Image */}
+                        <div className="absolute inset-0 bg-paper-recessed">
+                          <VehicleImage
+                            src={cover?.url}
+                            alt={cover?.altText ?? `${v.make} ${v.model}`}
+                            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-ink-solid/90 via-ink-solid/30 to-transparent pointer-events-none" />
+                        </div>
+
+                        {/* Top Stamp Tag */}
+                        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded bg-paper-base/95 backdrop-blur-xs border border-ink-solid font-data-mono text-[10px] text-ink-solid font-bold shadow-[0_1px_0_#16150F]">
+                            CHASSIS #{idx + 1}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded font-stamp-badge text-[9px] uppercase font-bold border border-ink-solid ${
+                              v.quantity === 0 ? 'bg-alert-red text-white' : 'bg-live-lime text-ink-solid'
+                            }`}
+                          >
+                            {v.quantity > 0 ? `${v.quantity} READY` : 'ARCHIVED'}
+                          </span>
+                        </div>
+
+                        {/* Bottom Vehicle Info Card (Transitions on expand) */}
+                        <div className="relative z-10 p-4 text-paper-base flex flex-col justify-end">
+                          <span className="font-stamp-badge text-[10px] text-live-lime uppercase tracking-wider font-bold">
+                            {v.category.name}
+                          </span>
+                          <h3 className="font-headline-sm text-headline-sm font-bold text-white tracking-tight leading-tight group-hover:text-live-lime transition-colors">
+                            {v.make} {v.model}
+                          </h3>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/20">
+                            <span className="font-price-lg text-body-sm font-bold text-white">
+                              {formatPrice(v.price)}
+                            </span>
+                            <span className="font-data-mono text-[10px] uppercase text-paper-base/80 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                              <span>View Sheet</span>
+                              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Pinboard Grid */}
+              <div>
+                <div className="pb-3 mb-4 border-b border-ink-solid/20 flex items-center justify-between">
+                  <span className="font-stamp-badge text-stamp-badge uppercase tracking-wider text-ink-solid font-bold">
+                    SPECIFICATION SHEETS & ACQUISITION MATRIX
+                  </span>
+                  <span className="font-data-mono text-xs text-ink-muted">
+                    SHOWING {featured.length} VERIFIED SPECIMENS
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {featured.map((vehicle) => (
+                    <VehicleCard
+                      key={vehicle.id}
+                      vehicle={vehicle}
+                      onAddToCart={(item) => addVehicleToCart(api, item)}
+                      onFavourite={(item) => saveVehicle(api, item)}
+                      onPurchase={(item) => purchaseVehicle(api, item)}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
