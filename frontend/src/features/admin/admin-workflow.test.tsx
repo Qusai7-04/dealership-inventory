@@ -46,7 +46,6 @@ const sampleVehicleWithoutImage: Vehicle = {
   price: '24500000.00',
   quantity: 0,
   lowStockThreshold: 2,
-  isActive: true,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
   images: [],
