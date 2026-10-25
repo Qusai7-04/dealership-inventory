@@ -1,6 +1,6 @@
 # PROMPTS.md
 
-Raw prompts used while building this project. These prompt-only entries are not complete chat transcripts. Add raw, unedited AI chat logs or public chat links before submission, as the assignment requires.
+Prompts and implementation notes preserved while building this project. Prompt-only entries are not complete chat transcripts, and entries explicitly labelled as summaries are not raw logs. This file does not yet satisfy the assignment requirement for raw, unedited AI chat logs or public chat links; the project owner must add those original records before submission.
 
 ## Sessions
 
@@ -560,10 +560,10 @@ Task: Add Docker Compose and verify the real database workflow.
 6. Run unit and integration tests, build, and diff check.
 7. Update README with Docker Compose setup and safe cleanup instructions.
 
-### Session: Authentication and authorization implementation (2026-10-25)
+### Implementation summary, not a raw chat: Authentication and authorization (2026-10-25)
 
 Implemented PostgreSQL-backed registration and login, bcrypt password hashing, signed and expiring JWT bearer tokens, active-user authentication, current database-backed role authorization, request validation, safe error responses, and startup configuration validation. Added focused unit and live PostgreSQL integration coverage for registration, login, duplicate normalized emails, privilege-field injection, invalid credentials, token failures, deactivation, and role changes. Updated environment and API documentation. The completed checks were 34 passing tests across 7 files, a successful TypeScript build, `git diff --check`, and an npm audit reporting zero vulnerabilities.
 
-### Session: Vehicle inventory API implementation (2026-10-25)
+### Implementation summary, not a raw chat: Vehicle inventory API (2026-10-25)
 
 Implemented public active-vehicle listing, searching, filtering, sorting, pagination and detail retrieval, plus authenticated admin creation, catalogue updates, soft deletion and transactional restocking. Added migration 002 for opening and restock receipts, database-backed idempotency and concurrency protection, strict request validation, safe parameterized queries, and live PostgreSQL integration coverage. Updated API and schema documentation. Verification completed with 57 passing tests across 8 files, a successful TypeScript build, `git diff --check`, migration 002 applied successfully to the existing development database, and an idempotent second migration run.

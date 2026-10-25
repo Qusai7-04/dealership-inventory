@@ -220,12 +220,12 @@ The development environment uses Docker Compose to run PostgreSQL 17 in an isola
 Run `npm install`, then `npm run dev` for development or `npm run build` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it.
 - `GET /health` returns `{"status":"ok"}` (liveness check, does not require PostgreSQL).
 - `GET /health/db` checks live database connectivity via `SELECT 1;` and returns `{"status":"ok","database":"connected"}` or `503` if unreachable.
-- Run `npm test` to execute the full unit and live integration test suite.
+- Set `TEST_DATABASE_URL` to a dedicated database whose name ends in `_test`, then run `npm test`. Integration tests fail fast instead of falling back to the development database.
 - Run `npm run migrate` to apply pending PostgreSQL schema migrations.
 
 ## Authentication API
 
-Set `JWT_SECRET` to a random value of at least 32 characters and optionally set `JWT_EXPIRES_IN_SECONDS` (default `3600`). The server refuses to start without a valid secret. Integration tests prefer `TEST_DATABASE_URL`; configure it as a separate PostgreSQL database when available.
+Set `JWT_SECRET` to a random value of at least 32 characters and optionally set `JWT_EXPIRES_IN_SECONDS` (default `3600`). The server refuses to start without a valid secret. Integration tests require `TEST_DATABASE_URL` and accept only a database name ending in `_test`.
 
 Register a normal user. Extra privilege fields are ignored and the server always assigns `role: "user"`:
 
@@ -251,7 +251,7 @@ Content-Type: application/json
 
 The response contains `token` and the same safe user fields. Send the token on protected requests as `Authorization: Bearer <token>`. For example, `GET /api/auth/me` returns the current active user. Authentication reloads the user and role from PostgreSQL, so deactivation and role changes take effect without waiting for an old token to expire. Admin routes can reuse `authenticate` followed by `requireRole('admin')`.
 
-Run all tests with `npm test`. To require live integration coverage explicitly in PowerShell:
+Run the full unit and live PostgreSQL integration suite in PowerShell:
 
 ```powershell
 $env:TEST_DATABASE_URL = 'postgresql://dealership_app:<password>@localhost:5433/dealership_inventory_test'
@@ -300,4 +300,6 @@ Migrations `002_create_stock_receipts.sql` and `003_add_stock_receipt_result_qua
 
 ## My AI Usage
 
-Codex assisted with planning, database documentation, backend implementation, and automated tests. The project owner will add their own account of the tools used, how they were used, and their reflection before submission. [PROMPTS.md](PROMPTS.md) contains prompt records and concise implementation-session records; the assignment also requires raw, unedited AI chat logs or public chat links. For each AI-assisted commit, use the assignment's `Co-authored-by:` trailer and accurately describe the assistance in the commit message. No personal reflection is claimed here.
+Codex was used to review the assignment and database design, draft and revise TypeScript/SQL implementation, write Vitest and Supertest tests, run PostgreSQL integration checks, diagnose failures, and document the verified behavior. The original feature commits combined tests and implementation; the later remediation commits record truthful test-first red and green steps without rewriting that history. The project owner still needs to add their personal reflection before submission.
+
+[PROMPTS.md](PROMPTS.md) preserves supplied prompts and labels generated implementation summaries as summaries. It does not yet contain the raw, unedited AI response logs or public chat links required by the Kata; the project owner must add those original records. Every AI-assisted commit uses the `Co-authored-by:` trailer.
