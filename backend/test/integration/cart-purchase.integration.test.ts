@@ -1,6 +1,6 @@
 import pg from 'pg';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import app from '../../src/app.js';
 import { createAccessToken } from '../../src/auth.js';
 import { runMigrations } from '../../src/migrate.js';
@@ -28,6 +28,10 @@ describe('cart and purchase integration', () => {
       [`${prefix}-one@example.com`, `${prefix}-two@example.com`]
     );
     users = result.rows.map((row) => row.id);
+  });
+
+  beforeEach(async () => {
+    await pool.query('DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = ANY($1::uuid[]))', [users]);
   });
 
   afterAll(async () => {
@@ -121,5 +125,83 @@ describe('cart and purchase integration', () => {
     expect((await request(app).get('/api/cart').set(bearer(0))).body).toMatchObject({ cart: { id: cartId }, items: [] });
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = ANY($1::uuid[]) ORDER BY id', [[a, b]])).rows.map((row) => row.quantity)).toEqual([1, 1]);
     await request(app).post('/api/cart/checkout').set(bearer(0)).send({ requestId: crypto.randomUUID(), items: [] }).expect(409);
+  });
+
+  it('rejects stale prices and unavailable later items without changing stock or cart', async () => {
+    const a = await vehicle('stale-a', 2, '1.00');
+    const b = await vehicle('stale-b', 1, '2.00');
+    for (const id of [a, b]) await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(200);
+    const body = { requestId: crypto.randomUUID(), items: [{ vehicleId: a, price: '1.00' }, { vehicleId: b, price: '2.00' }] };
+    await pool.query('UPDATE vehicles SET price = 3 WHERE id = $1', [b]);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send(body).expect(409);
+    await pool.query('UPDATE vehicles SET price = 2, quantity = 0 WHERE id = $1', [b]);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send(body).expect(409);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [a])).rows[0].quantity).toBe(2);
+    expect((await request(app).get('/api/cart').set(bearer(0))).body.itemCount).toBe(2);
+    expect((await pool.query('SELECT count(*)::int AS count FROM purchases WHERE request_id = $1', [body.requestId])).rows[0].count).toBe(0);
+  });
+
+  it('rolls back earlier checkout work if a later purchase item insert fails', async () => {
+    const [a, b] = [await vehicle('rollback-a', 2), await vehicle('rollback-b', 2)].sort();
+    for (const id of [a, b]) await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(200);
+    const functionName = `fail_purchase_${process.pid}`;
+    await pool.query(`CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.vehicle_id = '${b}' THEN RAISE EXCEPTION 'forced test failure'; END IF; RETURN NEW; END $$`);
+    await pool.query(`CREATE TRIGGER ${functionName} BEFORE INSERT ON purchase_items FOR EACH ROW EXECUTE FUNCTION ${functionName}()`);
+    const requestId = crypto.randomUUID();
+    try {
+      await request(app).post('/api/cart/checkout').set(bearer(0)).send({ requestId, items: [{ vehicleId: a, price: '10.25' }, { vehicleId: b, price: '10.25' }] }).expect(500);
+      expect((await pool.query('SELECT quantity FROM vehicles WHERE id = ANY($1::uuid[])', [[a, b]])).rows.map((row) => row.quantity)).toEqual([2, 2]);
+      expect((await pool.query('SELECT count(*)::int AS count FROM purchases WHERE request_id = $1', [requestId])).rows[0].count).toBe(0);
+      expect((await request(app).get('/api/cart').set(bearer(0))).body.itemCount).toBe(2);
+    } finally {
+      await pool.query(`DROP TRIGGER ${functionName} ON purchase_items`);
+      await pool.query(`DROP FUNCTION ${functionName}()`);
+    }
+  });
+
+  it('returns original results on exact retries and conflicts on request key reuse', async () => {
+    const a = await vehicle('retry-direct', 2);
+    const directKey = crypto.randomUUID();
+    const direct = await request(app).post(`/api/vehicles/${a}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200);
+    const repeated = await Promise.all([1, 2].map(() => request(app).post(`/api/vehicles/${a}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200)));
+    expect(repeated.map((result) => result.body.purchase.id)).toEqual([direct.body.purchase.id, direct.body.purchase.id]);
+    const b = await vehicle('retry-cart', 2);
+    await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: b }).expect(200);
+    const checkoutBody = { requestId: crypto.randomUUID(), items: [{ vehicleId: b, price: '10.25' }] };
+    const first = await request(app).post('/api/cart/checkout').set(bearer(0)).send(checkoutBody).expect(200);
+    const again = await Promise.all([1, 2].map(() => request(app).post('/api/cart/checkout').set(bearer(0)).send(checkoutBody).expect(200)));
+    expect(again.map((result) => result.body.purchase.id)).toEqual([first.body.purchase.id, first.body.purchase.id]);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send({ ...checkoutBody, requestId: directKey }).expect(409);
+    await request(app).post(`/api/vehicles/${a}/purchase`).set(bearer(0)).send({ requestId: checkoutBody.requestId }).expect(409);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send({ ...checkoutBody, items: [{ vehicleId: a, price: '10.25' }] }).expect(409);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [a])).rows[0].quantity).toBe(1);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [b])).rows[0].quantity).toBe(1);
+  });
+
+  it('lets only one competing buyer take the last unit', async () => {
+    const id = await vehicle('last-unit', 1);
+    const results = await Promise.all([0, 1].map((index) => request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(index)).send({ requestId: crypto.randomUUID() })));
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM purchase_items WHERE vehicle_id = $1', [id])).rows[0].count).toBe(1);
+  });
+
+  it('lets only one competing checkout take the last shared unit', async () => {
+    const id = await vehicle('checkout-last', 1);
+    for (const index of [0, 1]) await request(app).post('/api/cart/items').set(bearer(index)).send({ vehicleId: id }).expect(200);
+    const results = await Promise.all([0, 1].map((index) => request(app).post('/api/cart/checkout').set(bearer(index)).send({ requestId: crypto.randomUUID(), items: [{ vehicleId: id, price: '10.25' }] })));
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM purchase_items WHERE vehicle_id = $1', [id])).rows[0].count).toBe(1);
+    const loser = results.findIndex((result) => result.status === 409);
+    expect((await request(app).get('/api/cart').set(bearer(loser))).body.itemCount).toBe(1);
+  });
+
+  it('rejects deleted stock lines and malformed purchase input', async () => {
+    const id = await vehicle('deleted-direct', 1);
+    await pool.query('UPDATE vehicles SET deleted_at = now() WHERE id = $1', [id]);
+    await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(404);
+    await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID(), totalPrice: 0 }).expect(400);
+    await request(app).post('/api/cart/checkout').send({ requestId: crypto.randomUUID(), items: [] }).expect(401);
   });
 });

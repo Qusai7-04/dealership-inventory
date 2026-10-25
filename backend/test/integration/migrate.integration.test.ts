@@ -37,4 +37,14 @@ describe('Migration Live Integration Tests', () => {
     expect(tableNames).toContain('vehicles');
     expect(tableNames).toContain('stock_receipts');
   });
+
+  it('applies cart and purchase schema once with required uniqueness', async () => {
+    await runMigrations(pool, path.resolve(process.cwd(), 'migrations'));
+    expect(await runMigrations(pool, path.resolve(process.cwd(), 'migrations'))).toEqual([]);
+    const tables = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])", [['carts', 'cart_items', 'purchases', 'purchase_items']]);
+    expect(tables.rows.map((row) => row.table_name).sort()).toEqual(['cart_items', 'carts', 'purchase_items', 'purchases']);
+    const constraints = await pool.query("SELECT conname FROM pg_constraint WHERE conrelid IN ('carts'::regclass, 'cart_items'::regclass, 'purchases'::regclass, 'purchase_items'::regclass)");
+    const names = constraints.rows.map((row) => row.conname);
+    expect(names).toEqual(expect.arrayContaining(['carts_user_id_key', 'cart_items_pkey', 'purchases_user_id_request_id_key', 'purchase_items_purchase_id_vehicle_id_key']));
+  });
 });
