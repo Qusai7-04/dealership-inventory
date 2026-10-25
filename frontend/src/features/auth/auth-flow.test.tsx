@@ -19,7 +19,8 @@ describe('authentication flow', () => {
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         vehicles: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 },
-      }), { status: 200 }));
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ categories: [] }), { status: 200 }));
 
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/sign-in']}><App /></MemoryRouter>);

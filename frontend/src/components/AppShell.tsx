@@ -5,7 +5,7 @@ export function AppShell() {
   const { user, logout } = useAuth();
   return <div className="app-shell">
     <header className="topbar"><NavLink className="wordmark" to="/">CREASELINE</NavLink>
-      <nav aria-label="Primary"><NavLink to="/vehicles">Vehicles</NavLink><NavLink to="/cart">Cart</NavLink><NavLink to="/favourites">Favourites</NavLink><NavLink to="/notifications">Notifications</NavLink>{user?.role === 'admin' && <NavLink to="/admin">Inventory</NavLink>}</nav>
+      <nav aria-label="Primary"><NavLink to="/vehicles">Vehicles</NavLink><NavLink to="/cart">Cart</NavLink><NavLink to="/favourites">Favourites</NavLink><NavLink to="/notifications">Notifications</NavLink><NavLink to="/purchases">Purchases</NavLink>{user?.role === 'admin' && <NavLink to="/admin">Inventory</NavLink>}</nav>
       <button className="text-button" onClick={logout}>Sign out</button>
     </header>
     <Outlet />

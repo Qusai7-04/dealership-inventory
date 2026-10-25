@@ -5,6 +5,12 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { SignInPage, RegisterPage } from './pages/AuthPages';
 import { CataloguePage } from './pages/CataloguePage';
 import { HomePage } from './pages/HomePage';
+import { VehicleDetailPage } from './pages/VehicleDetailPage';
+import { CartPage } from './pages/CartPage';
+import { FavouritesPage } from './pages/FavouritesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { PurchasesPage } from './pages/PurchasesPage';
+import { AdminPage } from './pages/AdminPage';
 
 export default function App() {
   return <AuthProvider><Routes>
@@ -13,6 +19,12 @@ export default function App() {
     <Route path="/register" element={<RegisterPage />} />
     <Route element={<ProtectedRoute />}><Route element={<AppShell />}>
       <Route path="/vehicles" element={<CataloguePage />} />
+      <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
+      <Route path="/cart" element={<CartPage />} />
+      <Route path="/favourites" element={<FavouritesPage />} />
+      <Route path="/notifications" element={<NotificationsPage />} />
+      <Route path="/purchases" element={<PurchasesPage />} />
+      <Route element={<ProtectedRoute admin />}><Route path="/admin" element={<AdminPage />} /></Route>
     </Route></Route>
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AuthProvider>;
