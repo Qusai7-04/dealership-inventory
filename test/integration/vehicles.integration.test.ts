@@ -85,6 +85,14 @@ describe('Vehicle inventory integration', () => {
     }
   });
 
+  it('requires authentication for vehicle reads', async () => {
+    const id = await insertVehicle('read-auth');
+    for (const path of ['/api/vehicles', '/api/vehicles/search', `/api/vehicles/${id}`]) {
+      expect((await request(app).get(path)).status).toBe(401);
+      expect((await request(app).get(path).set(auth(userToken))).status).toBe(200);
+    }
+  });
+
   it('creates a stock line and records positive opening inventory', async () => {
     const response = await request(app).post('/api/vehicles').set(auth()).send(vehicleBody('create', { quantity: 4 }));
     expect(response.status).toBe(201);
@@ -115,7 +123,7 @@ describe('Vehicle inventory integration', () => {
     await insertVehicle('list-alpha', { model: 'Alpha', price: 10000, quantity: 2 });
     await insertVehicle('list-beta', { model: 'Beta', price: 20000, quantity: 0, categoryId: otherCategoryId });
     await insertVehicle('list-gamma', { model: 'Gamma', price: 30000, quantity: 4 });
-    const response = await request(app).get('/api/vehicles').query({
+    const response = await request(app).get('/api/vehicles').set(auth(userToken)).query({
       search: 'list-', categoryId, minPrice: 9000, maxPrice: 31000,
       available: 'true', sort: 'price', direction: 'desc', page: 1, limit: 2,
     });
@@ -125,10 +133,10 @@ describe('Vehicle inventory integration', () => {
     expect(response.body.vehicles[0].category).toMatchObject({ id: categoryId });
     expect(response.body.vehicles[0]).not.toHaveProperty('deletedAt');
 
-    const searchRoute = await request(app).get('/api/vehicles/search').query({ search: 'Gamma' });
+    const searchRoute = await request(app).get('/api/vehicles/search').set(auth(userToken)).query({ search: 'Gamma' });
     expect(searchRoute.status).toBe(200);
     expect(searchRoute.body.vehicles.some((vehicle: { model: string }) => vehicle.model === 'Gamma')).toBe(true);
-    const empty = await request(app).get('/api/vehicles').query({ search: `${prefix}-missing` });
+    const empty = await request(app).get('/api/vehicles').set(auth(userToken)).query({ search: `${prefix}-missing` });
     expect(empty.body).toMatchObject({ vehicles: [], pagination: { total: 0, totalPages: 0 } });
   });
 
@@ -137,22 +145,22 @@ describe('Vehicle inventory integration', () => {
     [{ sort: 'deleted_at' }], [{ direction: 'sideways' }], [{ minPrice: -1 }],
     [{ minPrice: 10, maxPrice: 5 }], [{ categoryId: 'x' }],
   ])('rejects invalid list query parameters', async (query) => {
-    expect((await request(app).get('/api/vehicles').query(query)).status).toBe(400);
+    expect((await request(app).get('/api/vehicles').set(auth(userToken)).query(query)).status).toBe(400);
   });
 
   it('parameterizes hostile search input and leaves the schema intact', async () => {
-    const response = await request(app).get('/api/vehicles').query({ search: "'; DROP TABLE vehicles; --" });
+    const response = await request(app).get('/api/vehicles').set(auth(userToken)).query({ search: "'; DROP TABLE vehicles; --" });
     expect(response.status).toBe(200);
     expect((await pool.query("SELECT to_regclass('public.vehicles') AS name")).rows[0].name).toBe('vehicles');
   });
 
   it('returns vehicle details and rejects malformed, missing, and deleted IDs', async () => {
     const id = await insertVehicle('detail');
-    expect((await request(app).get(`/api/vehicles/${id}`)).status).toBe(200);
-    expect((await request(app).get('/api/vehicles/not-a-uuid')).status).toBe(400);
-    expect((await request(app).get('/api/vehicles/00000000-0000-4000-8000-000000000000')).status).toBe(404);
+    expect((await request(app).get(`/api/vehicles/${id}`).set(auth(userToken))).status).toBe(200);
+    expect((await request(app).get('/api/vehicles/not-a-uuid').set(auth(userToken))).status).toBe(400);
+    expect((await request(app).get('/api/vehicles/00000000-0000-4000-8000-000000000000').set(auth(userToken))).status).toBe(404);
     await pool.query('UPDATE vehicles SET deleted_at = now() WHERE id = $1', [id]);
-    expect((await request(app).get(`/api/vehicles/${id}`)).status).toBe(404);
+    expect((await request(app).get(`/api/vehicles/${id}`).set(auth(userToken))).status).toBe(404);
   });
 
   it('updates only editable catalogue fields and keeps quantity unchanged', async () => {
@@ -193,8 +201,8 @@ describe('Vehicle inventory integration', () => {
   it('soft-deletes a vehicle and hides it from reads and further mutations', async () => {
     const id = await insertVehicle('delete');
     expect((await request(app).delete(`/api/vehicles/${id}`).set(auth())).status).toBe(204);
-    expect((await request(app).get(`/api/vehicles/${id}`)).status).toBe(404);
-    expect((await request(app).get('/api/vehicles').query({ search: `${prefix}-delete` })).body.vehicles).toEqual([]);
+    expect((await request(app).get(`/api/vehicles/${id}`).set(auth(userToken))).status).toBe(404);
+    expect((await request(app).get('/api/vehicles').set(auth(userToken)).query({ search: `${prefix}-delete` })).body.vehicles).toEqual([]);
     expect((await request(app).put(`/api/vehicles/${id}`).set(auth()).send({ price: 1 })).status).toBe(404);
     expect((await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 1, requestId: crypto.randomUUID() })).status).toBe(404);
   });
