@@ -73,8 +73,12 @@ describe('favourites and targeted notifications', () => {
     expect((await request(app).get('/api/favourites').set(bearer(1))).body.favourites).toEqual([]);
     expect((await pool.query('SELECT count(*)::int AS count FROM favourites WHERE user_id = $1 AND vehicle_id = $2', [users[0], id])).rows[0].count).toBe(1);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM cart_items WHERE vehicle_id = $1', [id])).rows[0].count).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM purchase_items WHERE vehicle_id = $1', [id])).rows[0].count).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [id])).rows[0].count).toBe(0);
     await pool.query('UPDATE vehicles SET deleted_at = now() WHERE id = $1', [id]);
     expect((await request(app).get('/api/favourites').set(bearer(0))).body.favourites[0].available).toBe(false);
+    expect((await request(app).put(`/api/favourites/${id}`).set(bearer(0)).expect(200)).body.favourite.deleted).toBe(true);
     await request(app).put(`/api/favourites/${id}`).set(bearer(1)).expect(404);
     await request(app).put('/api/favourites/bad').set(bearer(0)).expect(400);
     await request(app).put(`/api/favourites/${crypto.randomUUID()}`).set(bearer(0)).expect(404);
@@ -181,5 +185,44 @@ describe('favourites and targeted notifications', () => {
     expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [id])).rows[0].count).toBe(2);
     await request(app).post(`/api/vehicles/${id}/restock`).set(bearer(2)).send({ quantity: 4, requestId }).expect(409);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(4);
+    await request(app).delete(`/api/favourites/${id}`).set(bearer(0)).expect(200);
+    for (let index = 0; index < 4; index++) {
+      await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(1)).send({ requestId: crypto.randomUUID() }).expect(200);
+    }
+    await request(app).post(`/api/vehicles/${id}/restock`).set(bearer(2)).send({ quantity: 2, requestId: crypto.randomUUID() }).expect(200);
+    const recipients = await pool.query("SELECT recipient_id, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 AND type = 'back_in_stock' GROUP BY recipient_id", [id]);
+    expect(Object.fromEntries(recipients.rows.map((row) => [row.recipient_id, row.count]))).toEqual({ [users[0]]: 1, [users[1]]: 2 });
+  });
+
+  it('rolls back direct sale, checkout and restock when an alert insert fails', async () => {
+    const [a, b] = [await vehicle('rollback-a', 4, 3), await vehicle('rollback-b', 4, 3)].sort();
+    const name = `fail_alert_${process.pid}_${Date.now()}`;
+    await pool.query(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.vehicle_id = '${b}' THEN RAISE EXCEPTION 'forced alert failure'; END IF; RETURN NEW; END $$`);
+    await pool.query(`CREATE TRIGGER ${name} BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION ${name}()`);
+    try {
+      const directKey = crypto.randomUUID();
+      await request(app).post(`/api/vehicles/${b}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(500);
+      expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [b])).rows[0].quantity).toBe(4);
+      expect((await pool.query('SELECT count(*)::int AS count FROM purchases WHERE request_id = $1', [directKey])).rows[0].count).toBe(0);
+
+      for (const id of [a, b]) await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(200);
+      const checkoutKey = crypto.randomUUID();
+      await request(app).post('/api/cart/checkout').set(bearer(0)).send({ requestId: checkoutKey,
+        items: [a, b].map((vehicleId) => ({ vehicleId, price: '10.25' })) }).expect(500);
+      expect((await pool.query('SELECT quantity FROM vehicles WHERE id = ANY($1::uuid[])', [[a, b]])).rows.map((row) => row.quantity)).toEqual([4, 4]);
+      expect((await pool.query('SELECT count(*)::int AS count FROM purchases WHERE request_id = $1', [checkoutKey])).rows[0].count).toBe(0);
+      expect((await request(app).get('/api/cart').set(bearer(0))).body.itemCount).toBe(2);
+      expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = ANY($1::uuid[])', [[a, b]])).rows[0].count).toBe(0);
+
+      await pool.query('UPDATE vehicles SET quantity = 0 WHERE id = $1', [b]);
+      await pool.query('INSERT INTO favourites (user_id, vehicle_id, notify_on_restock) VALUES ($1, $2, true)', [users[0], b]);
+      const restockKey = crypto.randomUUID();
+      await request(app).post(`/api/vehicles/${b}/restock`).set(bearer(2)).send({ quantity: 2, requestId: restockKey }).expect(500);
+      expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [b])).rows[0].quantity).toBe(0);
+      expect((await pool.query('SELECT count(*)::int AS count FROM stock_receipts WHERE request_id = $1', [restockKey])).rows[0].count).toBe(0);
+    } finally {
+      await pool.query(`DROP TRIGGER ${name} ON notifications`);
+      await pool.query(`DROP FUNCTION ${name}()`);
+    }
   });
 });

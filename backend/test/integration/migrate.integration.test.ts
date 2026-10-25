@@ -60,4 +60,34 @@ describe('Migration Live Integration Tests', () => {
     const indexes = await pool.query("SELECT indexname FROM pg_indexes WHERE tablename = ANY($1::text[])", [['favourites', 'notifications']]);
     expect(indexes.rows.map((row) => row.indexname)).toEqual(expect.arrayContaining(['idx_favourites_restock_subscribers', 'idx_notifications_inbox']));
   });
+
+  it('enforces favourite defaults and notification integrity in PostgreSQL', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const userId = (await client.query("INSERT INTO users (full_name, email, password_hash) VALUES ('Schema User', $1, 'test-hash') RETURNING id", [`schema-${crypto.randomUUID()}@example.com`])).rows[0].id;
+      const categoryId = (await client.query('INSERT INTO vehicle_categories (name) VALUES ($1) RETURNING id', [`schema-${crypto.randomUUID()}`])).rows[0].id;
+      const vehicleId = (await client.query('INSERT INTO vehicles (make, model, category_id, price) VALUES ($1, $2, $3, 1) RETURNING id', [`schema-${crypto.randomUUID()}`, 'Model', categoryId])).rows[0].id;
+      const favourite = await client.query('INSERT INTO favourites (user_id, vehicle_id) VALUES ($1, $2) RETURNING notify_on_restock', [userId, vehicleId]);
+      expect(favourite.rows[0].notify_on_restock).toBe(false);
+      const rejected = async (sql: string, values: unknown[], code: string) => {
+        await client.query('SAVEPOINT invalid_row');
+        await expect(client.query(sql, values)).rejects.toMatchObject({ code });
+        await client.query('ROLLBACK TO SAVEPOINT invalid_row');
+        await client.query('RELEASE SAVEPOINT invalid_row');
+      };
+      await rejected('INSERT INTO favourites (user_id, vehicle_id) VALUES ($1, $2)', [userId, vehicleId], '23505');
+      await rejected('INSERT INTO favourites (user_id, vehicle_id) VALUES ($1, $2)', [crypto.randomUUID(), vehicleId], '23503');
+      await rejected("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'unknown', 'event', 'Message')", [userId, vehicleId], '23514');
+      await rejected("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'low_stock', ' ', 'Message')", [userId, vehicleId], '23514');
+      await rejected("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'low_stock', 'event', ' ')", [userId, vehicleId], '23514');
+      await rejected("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'low_stock', 'event', 'Message')", [crypto.randomUUID(), vehicleId], '23503');
+      await rejected("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'low_stock', 'event', 'Message')", [userId, crypto.randomUUID()], '23503');
+      await client.query("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'low_stock', 'event', 'Message')", [userId, vehicleId]);
+      await rejected("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'low_stock', 'event', 'Message')", [userId, vehicleId], '23505');
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
 });
