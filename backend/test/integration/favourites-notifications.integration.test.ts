@@ -163,4 +163,22 @@ describe('favourites and targeted notifications', () => {
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [lowId])).rows[0].quantity).toBe(3);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [outId])).rows[0].quantity).toBe(0);
   });
+
+  it('targets back-in-stock restock alerts only to active opted-in favourites', async () => {
+    const id = await vehicle('back-in-stock', 0);
+    for (const user of [0, 1, 2, 5]) {
+      await pool.query('INSERT INTO favourites (user_id, vehicle_id, notify_on_restock) VALUES ($1, $2, $3)', [users[user], id, user !== 2]);
+    }
+    const requestId = crypto.randomUUID();
+    await request(app).post(`/api/vehicles/${id}/restock`).set(bearer(2)).send({ quantity: 3, requestId }).expect(200);
+    await request(app).post(`/api/vehicles/${id}/restock`).set(bearer(2)).send({ quantity: 3, requestId }).expect(200);
+    const alerts = await pool.query("SELECT recipient_id, type, event_key FROM notifications WHERE vehicle_id = $1 ORDER BY recipient_id", [id]);
+    expect(alerts.rows.map((row) => row.recipient_id).sort()).toEqual([users[0], users[1]].sort());
+    expect(alerts.rows.map((row) => row.type)).toEqual(['back_in_stock', 'back_in_stock']);
+    expect(new Set(alerts.rows.map((row) => row.event_key)).size).toBe(1);
+    await request(app).post(`/api/vehicles/${id}/restock`).set(bearer(2)).send({ quantity: 1, requestId: crypto.randomUUID() }).expect(200);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [id])).rows[0].count).toBe(2);
+    await request(app).post(`/api/vehicles/${id}/restock`).set(bearer(2)).send({ quantity: 4, requestId }).expect(409);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(4);
+  });
 });
