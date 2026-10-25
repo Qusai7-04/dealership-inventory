@@ -6,7 +6,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx src/migrate.ts",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f db"
   },
   "dependencies": {
     "express": "^5.1.0",

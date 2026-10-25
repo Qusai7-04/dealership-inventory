@@ -536,3 +536,26 @@ Step 5: Create the initial database migrations
 Step 6: Verify everything
 Step 7: Git commits and GitHub pushes
 Step 8: Update project documentation
+
+### Session: Dockerized PostgreSQL development environment (2026-10-25)
+
+Continue my Incubyte Car Dealership Inventory System project in `C:\PROJECTS\Dealership Inventory`.
+
+GitHub repository: https://github.com/Qusai7-04/dealership-inventory
+
+Docker Desktop is installed and working. The project uses Node.js, TypeScript, Express, PostgreSQL, `pg`, Vitest and Supertest.
+
+The existing backend includes a PostgreSQL connection pool, health endpoints, a migration runner and an initial SQL migration for `users`, `vehicle_categories` and `vehicles`.
+
+Two existing local commits must be preserved:
+- `444fe48` — `feat: implement postgresql connection pool and health checks`
+- `d3524da` — `feat: add initial database migrations and migration runner`
+
+Task: Add Docker Compose and verify the real database workflow.
+1. Add a minimal Docker Compose configuration for PostgreSQL using host port 5433 mapped to container port 5432.
+2. Keep credentials out of committed files.
+3. Explain exact commands to start, check health, and stop safely.
+4. Configure backend to connect to Compose database and verify health check succeeds.
+5. Run migration runner against containerized database. Verify tables exist and idempotent second run.
+6. Run unit and integration tests, build, and diff check.
+7. Update README with Docker Compose setup and safe cleanup instructions.

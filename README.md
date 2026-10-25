@@ -172,26 +172,54 @@ Physical deletion is restricted for users, vehicles, categories, purchases, rece
 
 Cart additions and favourites never change stock. Cart checkout is all-or-nothing so users never receive an unintended partial purchase. The reconciliation rule for each vehicle is `current quantity = SUM(opening/restock quantity_added) - COUNT(completed purchase_items)`. Cross-table totals and stock changes require one transaction and application checks; a `CHECK` constraint alone cannot enforce them. `purchases.total_price` must equal the sum of its item price snapshots before commit. Retried successful requests return the original result rather than repeating stock changes.
 
-## PostgreSQL setup (preparation only)
+## PostgreSQL setup (Docker Compose)
 
-1. Install a local PostgreSQL server and `psql`, or obtain a managed PostgreSQL instance and `psql` client. Confirm the client is available with `psql --version` and the server is reachable with `psql -h localhost -U postgres -d postgres -c "SELECT version();"` (adjust host/user for your installation).
-2. As a PostgreSQL administrator, open `psql -h localhost -U postgres -d postgres`, then create a local role and database (replace the placeholder password before using it):
+The development environment uses Docker Compose to run PostgreSQL 17 in an isolated container on host port **5433** (mapped to container port 5432) to avoid conflicts with any local host PostgreSQL instance.
 
-   ```sql
-   CREATE ROLE dealership_app LOGIN PASSWORD '<choose-a-local-password>';
-   CREATE DATABASE dealership_inventory OWNER dealership_app;
+1. **Configure local environment:**
+   Copy `.env.example` to `.env`:
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+   Set your local development password in `.env`. Never commit `.env` or real credentials to Git.
+
+2. **Start the database:**
+   ```powershell
+   npm run db:up
+   # or: docker compose up -d
    ```
 
-3. When backend configuration exists, put a connection string such as `DATABASE_URL=postgresql://dealership_app:<choose-a-local-password>@localhost:5432/dealership_inventory` in a local, uncommitted environment file or secret store. URL-encode special password characters. Never commit credentials.
-4. Verify the new database with `psql -h localhost -U dealership_app -d dealership_inventory -c "SELECT current_database(), current_user;"`. PostgreSQL will prompt for the password.
-5. Apply the database migrations with `npm run migrate`. The migration runner applies SQL scripts from `migrations/` in transactional order and records them in `schema_migrations`. Then verify with `psql -h localhost -U dealership_app -d dealership_inventory -c "\dt"` and inspect constraints using `\d+ table_name` inside `psql`.
+3. **Check container health:**
+   ```powershell
+   docker compose ps
+   # STATUS should report: Up ... (healthy)
+   ```
+
+4. **Apply database migrations:**
+   ```powershell
+   npm run migrate
+   ```
+   The migration runner executes pending scripts in `migrations/` inside transactions and tracks them in `schema_migrations`.
+
+5. **Verify database relations:**
+   ```powershell
+   docker compose exec db psql -U dealership_app -d dealership_inventory -c "\dt"
+   ```
+   Confirms `schema_migrations`, `users`, `vehicle_categories`, and `vehicles` exist.
+
+6. **Safe cleanup (stop database):**
+   ```powershell
+   npm run db:down
+   # or: docker compose down
+   ```
+   This stops and removes the container and network while preserving the persistent named volume (`postgres_data`). Do **not** use `-v` during normal cleanup.
 
 ## Backend foundation
 
 Run `npm install`, then `npm run dev` for development or `npm run build` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it.
 - `GET /health` returns `{"status":"ok"}` (liveness check, does not require PostgreSQL).
 - `GET /health/db` checks live database connectivity via `SELECT 1;` and returns `{"status":"ok","database":"connected"}` or `503` if unreachable.
-- Run `npm test` to execute the unit and integration test suite.
+- Run `npm test` to execute the full unit and live integration test suite.
 - Run `npm run migrate` to apply pending PostgreSQL schema migrations.
 
 ## My AI Usage
