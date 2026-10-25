@@ -38,4 +38,23 @@ describe('VehicleCard', () => {
     expect(screen.getByRole('button', { name: /purchase now/i })).toBeDisabled();
     expect(screen.getByText('Out of stock')).toBeInTheDocument();
   });
+
+  it('preserves visible vehicle image, details and renders sold out stamp when stock is zero', () => {
+    render(<MemoryRouter><VehicleCard vehicle={{ ...vehicle, quantity: 0 }} onAddToCart={vi.fn()} onFavourite={vi.fn()} /></MemoryRouter>);
+    const img = screen.getByRole('img', { name: /image unavailable for Honda City/i });
+    expect(img).toBeInTheDocument();
+    expect(img).not.toHaveClass('brightness-0');
+    expect(screen.getByText(/SOLD OUT · ARCHIVED/i)).toBeInTheDocument();
+    expect(screen.getByText('Honda')).toBeInTheDocument();
+    expect(screen.getByText('City')).toBeInTheDocument();
+    expect(screen.getByText('₹12,50,000.00')).toBeInTheDocument();
+  });
+
+  it('triggers favourite toggle action on click', async () => {
+    const onFavourite = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<MemoryRouter><VehicleCard vehicle={vehicle} onAddToCart={vi.fn()} onFavourite={onFavourite} /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: /save Honda City to favourites/i }));
+    expect(onFavourite).toHaveBeenCalledWith(vehicle);
+  });
 });
