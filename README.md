@@ -394,9 +394,10 @@ The catalogue data is sourced from real-world and curated industry datasets, whi
 - **Authentication & security:** Configured through the `CAR_IMAGE_API_KEY` environment variable. The key is never logged, exposed in client URLs, or committed to Git. Requests are authenticated server-side using the `Authorization: Bearer <key>` header.
 - **Local caching:** When an image is fetched, binary WebP data is saved locally to `backend/public/images/vehicles/` and served via static route `/images/vehicles/`. Subsequent seed runs and API responses reuse the cached local assets, preserving API credit quotas and enabling offline functionality.
 - **Accessibility:** Accessible alternative text is dynamically formatted as `${year} ${make} ${model}, front three-quarter view` and persisted in `vehicle_images.alt_text`.
-- **Seeding:** `npm run db:seed:images` queries vehicles lacking a cover image (`display_order = 0`) and fetches up to 30 studio-render images safely within evaluation limits.
+- **Seeding & Live Generation:** `npm run db:seed:images` queries vehicles lacking a cover image (`display_order = 0`) and fetches up to 30 studio-render images safely within evaluation limits. In addition, the authenticated Admin Workspace provides a guarded `Generate Missing Image` action (`POST /api/vehicles/:id/generate-image`) that fetches a single front-3/4 render for newly added vehicles without reloading the whole catalogue.
+- **Image Audit Script:** Run `npm run db:audit-images` from the backend directory to verify all active vehicles against database references and physical files on disk.
 
-The verified development database contained 35 active vehicles, 27 opening receipts, and 16 valid local WebP/image rows, with no stock reconciliation mismatch or broken file reference. Do not run `npm run db:seed:images` during ordinary startup: it can consume provider credits. `npm run db:seed:vehicles` is idempotent and never resets an existing active stock line, but should only be used for an unseeded development database.
+The verified catalogue contains 35 active vehicles, 27 opening receipts, 30 verified local WebP front-3/4 studio renders, and 5 vehicles handled by the neutral automotive blueprint SVG fallback (`Maruti Suzuki Baleno`, `Renault Kiger`, `Skoda Kushaq`, `Toyota Glanza`, `Volkswagen Taigun`). Do not run `npm run db:seed:images` during ordinary startup: all supported images are pre-cached and tracked in Git. `npm run db:seed:vehicles` is idempotent and never resets an existing active stock line.
 
 ## Production Deployment Guide (Render)
 
@@ -466,7 +467,7 @@ Migrations are idempotent and tracked in the `schema_migrations` table. They nev
 
 - **Schema Migration (`npm run migrate`):** Safe to run on production at any time. Creates required tables, types, and indexes without modifying data.
 - **Catalogue Seeding (`npm run db:seed:vehicles`):** Safe **only** for initial catalogue bootstrap on a fresh, empty database. It inserts the 35 curated vehicle lines and their 27 opening stock receipts. It will **not** reset stock if vehicles already exist, but should not be run as an automated deployment step.
-- **Image Seeding (`npm run db:seed:images`):** **DO NOT run in production.** Image seeding calls the third-party carimage.dev API and consumes provider credits. All 16 approved vehicle images are already locally cached in `backend/public/images/vehicles/` and tracked in Git; the backend serves them statically out of the box in production.
+- **Image Seeding (`npm run db:seed:images`):** **DO NOT run in production.** Image seeding calls the third-party carimage.dev API and consumes provider credits. All 30 approved vehicle images are already locally cached in `backend/public/images/vehicles/` and tracked in Git; the backend serves them statically out of the box in production.
 
 ### 6. Safe Initial Administrator Setup
 
