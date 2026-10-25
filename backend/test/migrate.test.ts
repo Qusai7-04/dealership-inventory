@@ -99,4 +99,31 @@ describe('Migration Runner', () => {
     );
     expect(mockClientRelease).toHaveBeenCalled();
   });
+
+  it('locates migrations directory when run from project root without explicit path', async () => {
+    const { runMigrations } = await import('../src/migrate.js');
+
+    mockClientQuery.mockResolvedValueOnce({ rows: [] });
+    mockClientQuery.mockResolvedValueOnce({
+      rows: [
+        { name: '001_create_users_categories_vehicles.sql' },
+        { name: '002_create_stock_receipts.sql' },
+        { name: '003_add_stock_receipt_result_quantity.sql' },
+        { name: '004_create_carts_and_purchases.sql' },
+        { name: '005_create_favourites_and_notifications.sql' },
+        { name: '006_create_vehicle_images.sql' },
+      ],
+    });
+
+    const origCwd = process.cwd();
+    const projectRoot = path.resolve(origCwd, '..');
+    const spy = vi.spyOn(process, 'cwd').mockReturnValue(projectRoot);
+
+    try {
+      const applied = await runMigrations(mockPool);
+      expect(applied).toBeDefined();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
