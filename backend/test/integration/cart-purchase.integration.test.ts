@@ -174,8 +174,25 @@ describe('cart and purchase integration', () => {
     await request(app).post('/api/cart/checkout').set(bearer(0)).send({ ...checkoutBody, requestId: directKey }).expect(409);
     await request(app).post(`/api/vehicles/${a}/purchase`).set(bearer(0)).send({ requestId: checkoutBody.requestId }).expect(409);
     await request(app).post('/api/cart/checkout').set(bearer(0)).send({ ...checkoutBody, items: [{ vehicleId: a, price: '10.25' }] }).expect(409);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send({ ...checkoutBody, items: [{ vehicleId: b, price: '10.26' }] }).expect(409);
+    await request(app).post(`/api/vehicles/${b}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(409);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [a])).rows[0].quantity).toBe(1);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [b])).rows[0].quantity).toBe(1);
+  });
+
+  it('serializes simultaneous first attempts with the same request ID', async () => {
+    const directId = await vehicle('same-key-direct', 1);
+    const directKey = crypto.randomUUID();
+    const direct = await Promise.all([1, 2].map(() => request(app).post(`/api/vehicles/${directId}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200)));
+    expect(direct[0].body.purchase.id).toBe(direct[1].body.purchase.id);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [directId])).rows[0].quantity).toBe(0);
+    const cartId = await vehicle('same-key-cart', 1);
+    await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: cartId }).expect(200);
+    const body = { requestId: crypto.randomUUID(), items: [{ vehicleId: cartId, price: '10.25' }] };
+    const cart = await Promise.all([1, 2].map(() => request(app).post('/api/cart/checkout').set(bearer(0)).send(body).expect(200)));
+    expect(cart[0].body.purchase.id).toBe(cart[1].body.purchase.id);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [cartId])).rows[0].quantity).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM purchase_items WHERE vehicle_id = ANY($1::uuid[])', [[directId, cartId]])).rows[0].count).toBe(2);
   });
 
   it('lets only one competing buyer take the last unit', async () => {
