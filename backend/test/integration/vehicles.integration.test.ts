@@ -212,4 +212,47 @@ describe('Vehicle inventory integration', () => {
     expect((await request(app).put(`/api/vehicles/${id}`).set(auth()).send({ price: 1 })).status).toBe(404);
     expect((await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 1, requestId: crypto.randomUUID() })).status).toBe(404);
   });
+
+  it('exposes ordered images on vehicle detail and listing without duplicating rows', async () => {
+    const id = await insertVehicle('images-test');
+
+    // 1. Initially has empty images array
+    const initialDetail = await request(app).get(`/api/vehicles/${id}`).set(auth(userToken)).expect(200);
+    expect(initialDetail.body.vehicle.images).toEqual([]);
+
+    const initialList = await request(app).get('/api/vehicles').set(auth(userToken)).query({ search: `${prefix}-images-test` }).expect(200);
+    expect(initialList.body.vehicles.length).toBe(1);
+    expect(initialList.body.vehicles[0].images).toEqual([]);
+
+    // 2. Insert two images with display_order 1 and 0
+    await pool.query(
+      `INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order)
+       VALUES ($1, 'https://example.com/side.webp', 'Side view', 1),
+              ($1, 'https://example.com/cover.webp', 'Front cover view', 0)`,
+      [id]
+    );
+
+    // 3. Detail endpoint returns ordered images (display_order 0 first, then 1)
+    const detail = await request(app).get(`/api/vehicles/${id}`).set(auth(userToken)).expect(200);
+    expect(detail.body.vehicle.images).toHaveLength(2);
+    expect(detail.body.vehicle.images[0]).toMatchObject({
+      url: 'https://example.com/cover.webp',
+      altText: 'Front cover view',
+      displayOrder: 0,
+    });
+    expect(detail.body.vehicle.images[1]).toMatchObject({
+      url: 'https://example.com/side.webp',
+      altText: 'Side view',
+      displayOrder: 1,
+    });
+
+    // 4. Listing returns images and does NOT duplicate vehicle row
+    const list = await request(app).get('/api/vehicles').set(auth(userToken)).query({ search: `${prefix}-images-test` }).expect(200);
+    expect(list.body.pagination.total).toBe(1);
+    expect(list.body.vehicles).toHaveLength(1);
+    expect(list.body.vehicles[0].images).toHaveLength(2);
+    expect(list.body.vehicles[0].images[0].displayOrder).toBe(0);
+    expect(list.body.vehicles[0].images[1].displayOrder).toBe(1);
+  });
 });
+
