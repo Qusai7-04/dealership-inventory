@@ -41,3 +41,22 @@ export async function saveFavourite(userId: string, vehicleId: string) {
   }
   return { favourite: await selected(userId, id) };
 }
+
+export async function removeFavourite(userId: string, vehicleId: string) {
+  const result = await query('DELETE FROM favourites WHERE user_id = $1 AND vehicle_id = $2', [userId, validateVehicleId(vehicleId)]);
+  return { removed: result.rowCount === 1 };
+}
+
+export async function setRestockPreference(userId: string, vehicleId: string, input: unknown) {
+  const id = validateVehicleId(vehicleId);
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+    Object.keys(input).length !== 1 || typeof (input as { notifyOnRestock?: unknown }).notifyOnRestock !== 'boolean') {
+    throw new AppError(400, 'notifyOnRestock must be a boolean');
+  }
+  const result = await query(
+    'UPDATE favourites SET notify_on_restock = $3 WHERE user_id = $1 AND vehicle_id = $2',
+    [userId, id, (input as { notifyOnRestock: boolean }).notifyOnRestock]
+  );
+  if (!result.rowCount) throw new AppError(404, 'Favourite not found');
+  return { favourite: await selected(userId, id) };
+}
