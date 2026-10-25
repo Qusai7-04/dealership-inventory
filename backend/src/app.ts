@@ -4,6 +4,7 @@ import authRouter from './auth-routes.js';
 import { errorHandler } from './errors.js';
 import vehicleRouter from './vehicle-routes.js';
 import cartRouter from './cart-routes.js';
+import favouriteRouter from './favourite-routes.js';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.get('/health/db', async (_request, response) => {
 app.use('/api/auth', authRouter);
 app.use('/api/vehicles', vehicleRouter);
 app.use('/api/cart', cartRouter);
+app.use('/api/favourites', favouriteRouter);
 app.use(errorHandler);
 
 export default app;
