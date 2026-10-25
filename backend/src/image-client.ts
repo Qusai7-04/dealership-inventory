@@ -142,6 +142,7 @@ export class CarImageClient {
         Authorization: `Bearer ${this.apiKey}`,
         Accept: 'image/webp, image/png, image/jpeg, */*',
       },
+      signal: AbortSignal.timeout(60000),
     });
 
     if (response.status === 404) {
@@ -223,9 +224,12 @@ export async function seedVehicleImages(
   let imagesInserted = 0;
   let imagesSkipped = 0;
 
-  for (const veh of unseeded.rows) {
+  for (let i = 0; i < unseeded.rows.length; i++) {
+    const veh = unseeded.rows[i];
     const key = `${veh.make}:${veh.model}`.toLowerCase();
     const year = yearMap.get(key) ?? 2024;
+
+    console.log(`[${i + 1}/${unseeded.rows.length}] Fetching image for ${veh.make} ${veh.model} (${year})...`);
 
     try {
       const result = await imageClient.fetchAndCacheImage({
@@ -236,6 +240,7 @@ export async function seedVehicleImages(
       });
 
       if (!result) {
+        console.log(`  - No image found for ${veh.make} ${veh.model}`);
         imagesSkipped++;
         continue;
       }
@@ -247,9 +252,10 @@ export async function seedVehicleImages(
          SET url = EXCLUDED.url, alt_text = EXCLUDED.alt_text`,
         [veh.id, result.url, result.altText, 0]
       );
+      console.log(`  ✓ Saved image: ${result.url}`);
       imagesInserted++;
     } catch (err: any) {
-      console.warn(`Could not seed image for ${veh.make} ${veh.model}: ${err.message}`);
+      console.warn(`  ! Error fetching image for ${veh.make} ${veh.model}: ${err.message}`);
       imagesSkipped++;
     }
   }
