@@ -1,12 +1,30 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import type pg from 'pg';
 import { getPool, closePool } from './db.js';
 
+export function resolveMigrationsDir(explicitDir?: string): string {
+  if (explicitDir) return explicitDir;
+  const candidates = [
+    path.resolve(process.cwd(), 'migrations'),
+    path.resolve(process.cwd(), 'backend/migrations'),
+    path.resolve(__dirname, '../migrations'),
+    path.resolve(__dirname, '../../migrations'),
+  ];
+  for (const candidate of candidates) {
+    if (fsSync.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return path.resolve(process.cwd(), 'migrations');
+}
+
 export async function runMigrations(
   targetPool: pg.Pool = getPool(),
-  migrationsDir: string = path.resolve(process.cwd(), 'migrations')
+  migrationsDir?: string
 ): Promise<string[]> {
+  const dir = resolveMigrationsDir(migrationsDir);
   const client = await targetPool.connect();
   const appliedMigrations: string[] = [];
 
@@ -27,7 +45,7 @@ export async function runMigrations(
     const existing = new Set(rows.map((r) => r.name));
 
     // 3. Read migration directory
-    const entries = await fs.readdir(migrationsDir, { withFileTypes: true });
+    const entries = await fs.readdir(dir, { withFileTypes: true });
     const sqlFiles = entries
       .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))
       .map((entry) => entry.name)
@@ -39,7 +57,7 @@ export async function runMigrations(
         continue;
       }
 
-      const filePath = path.join(migrationsDir, file);
+      const filePath = path.join(dir, file);
       const sqlContent = await fs.readFile(filePath, 'utf-8');
 
       await client.query('BEGIN');
