@@ -6,7 +6,7 @@ The current identity of a stock line is case-insensitive `(make, model)` among a
 
 ## Data dictionary and relationships
 
-Every foreign key below uses `ON DELETE RESTRICT` (or PostgreSQL's equivalent `NO ACTION`) unless a different action is stated. History is retained; users, categories, vehicles, purchases, and receipts are not casually physically deleted. Application operations named below are planned, not implemented.
+Every foreign key below uses `ON DELETE RESTRICT` (or PostgreSQL's equivalent `NO ACTION`) unless a different action is stated. History is retained; users, categories, vehicles, purchases, and receipts are not casually physically deleted. Catalogue creation, editing, listing, soft deletion, and restocking are implemented; later workflows remain planned where stated.
 
 ### `users`
 

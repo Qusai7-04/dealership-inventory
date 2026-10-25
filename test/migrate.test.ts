@@ -36,6 +36,7 @@ describe('Migration Runner', () => {
     const applied = await runMigrations(mockPool, path.resolve(process.cwd(), 'migrations'));
 
     expect(applied).toContain('001_create_users_categories_vehicles.sql');
+    expect(applied).toContain('002_create_stock_receipts.sql');
     expect(mockClientQuery).toHaveBeenCalledWith('BEGIN');
     expect(mockClientQuery).toHaveBeenCalledWith(
       'INSERT INTO schema_migrations (name) VALUES ($1);',
@@ -50,9 +51,12 @@ describe('Migration Runner', () => {
 
     // 1st query: CREATE TABLE IF NOT EXISTS schema_migrations
     mockClientQuery.mockResolvedValueOnce({ rows: [] });
-    // 2nd query: SELECT name -> already contains 001
+    // 2nd query: SELECT name -> all migrations already applied
     mockClientQuery.mockResolvedValueOnce({
-      rows: [{ name: '001_create_users_categories_vehicles.sql' }],
+      rows: [
+        { name: '001_create_users_categories_vehicles.sql' },
+        { name: '002_create_stock_receipts.sql' },
+      ],
     });
 
     const applied = await runMigrations(mockPool, path.resolve(process.cwd(), 'migrations'));

@@ -20,8 +20,8 @@ The brief describes vehicle operations as protected, explicitly limits deletion 
 | `POST /api/auth/register` | Public | Register a normal user |
 | `POST /api/auth/login` | Public | Return an authentication token |
 | `POST /api/vehicles` | Admin | Create listing and opening-stock receipt when quantity is positive |
-| `GET /api/vehicles` | Authenticated | List active listings, including zero stock |
-| `GET /api/vehicles/search` | Authenticated | Filter by make, model, category, and price range |
+| `GET /api/vehicles` | Public | List active listings, including zero stock |
+| `GET /api/vehicles/search` | Public | Filter active listings using the same query parameters |
 | `PUT /api/vehicles/:id` | Admin | Edit catalogue details, never quantity directly |
 | `DELETE /api/vehicles/:id` | Admin | Soft-delete listing |
 | `POST /api/vehicles/:id/purchase` | Authenticated | Buy one unit immediately |
@@ -257,6 +257,46 @@ $env:TEST_DATABASE_URL = 'postgresql://dealership_app:<password>@localhost:5433/
 npm test
 ```
 
+## Vehicle inventory API
+
+Public catalogue reads exclude soft-deleted vehicles:
+
+| Method and route | Access | Purpose |
+|---|---|---|
+| `GET /api/vehicles` | Public | Paginated vehicle list |
+| `GET /api/vehicles/search` | Public | Alias for the filtered vehicle list |
+| `GET /api/vehicles/:id` | Public | Active vehicle details |
+| `POST /api/vehicles` | Admin | Create a stock line and opening receipt |
+| `PUT /api/vehicles/:id` | Admin | Edit catalogue fields without changing quantity |
+| `DELETE /api/vehicles/:id` | Admin | Soft-delete a stock line |
+| `POST /api/vehicles/:id/restock` | Admin | Atomically add stock and record an idempotent receipt |
+
+List query parameters are `page` (default 1), `limit` (default 20, maximum 100), `search` (make or model), `categoryId`, `minPrice`, `maxPrice`, `available`, `sort` (`make`, `model`, `price`, `quantity`, or `createdAt`), and `direction` (`asc` or `desc`). Responses contain `vehicles` and `{page, limit, total, totalPages}` pagination metadata.
+
+An admin creates a vehicle using a bearer token:
+
+```http
+POST /api/vehicles
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"make":"Toyota","model":"Corolla","categoryId":1,"price":25000,"quantity":4,"lowStockThreshold":3}
+```
+
+`make`, `model`, `categoryId`, and `price` are required. `quantity` defaults to zero and `lowStockThreshold` defaults to three. Price accepts zero or a positive JSON number with at most two decimal places. Quantities and thresholds must be non-negative integers. Updates accept only `make`, `model`, `categoryId`, `price`, and `lowStockThreshold`; stock cannot be edited through the general update route.
+
+Restocking requires a positive integer and a UUID request key. Reusing the same key for the same admin, vehicle, and quantity returns the existing result without adding stock twice:
+
+```http
+POST /api/vehicles/<vehicle-id>/restock
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"quantity":5,"requestId":"<uuid>"}
+```
+
+Migration `002_create_stock_receipts.sql` records opening inventory and restocks. Stock changes and their receipt records commit together, while PostgreSQL atomic updates prevent concurrent restocks from overwriting each other.
+
 ## My AI Usage
 
-Codex assisted with planning and database documentation. The project owner will add their own account of the tools used, how they were used, and their reflection before submission. [PROMPTS.md](PROMPTS.md) currently contains prompt-only records; the assignment also requires raw, unedited AI chat logs or public chat links. For each AI-assisted commit, use the assignment's `Co-authored-by:` trailer and accurately describe the assistance in the commit message. No personal reflection or application verification is claimed here.
+Codex assisted with planning, database documentation, backend implementation, and automated tests. The project owner will add their own account of the tools used, how they were used, and their reflection before submission. [PROMPTS.md](PROMPTS.md) contains prompt records and concise implementation-session records; the assignment also requires raw, unedited AI chat logs or public chat links. For each AI-assisted commit, use the assignment's `Co-authored-by:` trailer and accurately describe the assistance in the commit message. No personal reflection is claimed here.

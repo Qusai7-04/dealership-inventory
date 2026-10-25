@@ -18,21 +18,22 @@ describe.skipIf(!connectionString)('Migration Live Integration Tests', () => {
 
     // Verify schema_migrations table exists and has rows
     const { rows: migrationRows } = await pool.query(
-      'SELECT name FROM schema_migrations WHERE name = $1;',
-      ['001_create_users_categories_vehicles.sql']
+      'SELECT name FROM schema_migrations WHERE name = ANY($1::text[]);',
+      [['001_create_users_categories_vehicles.sql', '002_create_stock_receipts.sql']]
     );
-    expect(migrationRows.length).toBe(1);
+    expect(migrationRows.length).toBe(2);
 
-    // Verify users, vehicle_categories, vehicles tables exist in information_schema
+    // Verify inventory and authentication tables exist in information_schema
     const { rows: tableRows } = await pool.query(`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public'
-        AND table_name IN ('users', 'vehicle_categories', 'vehicles');
+        AND table_name IN ('users', 'vehicle_categories', 'vehicles', 'stock_receipts');
     `);
     const tableNames = tableRows.map((r: { table_name: string }) => r.table_name);
     expect(tableNames).toContain('users');
     expect(tableNames).toContain('vehicle_categories');
     expect(tableNames).toContain('vehicles');
+    expect(tableNames).toContain('stock_receipts');
   });
 });
