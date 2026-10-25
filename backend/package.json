@@ -6,7 +6,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run --no-file-parallelism",
-    "migrate": "npm run build --silent && node dist/migrate.js"
+    "migrate": "npm run build --silent && node dist/migrate.js",
+    "db:seed:vehicles": "tsx src/scripts/seed-vehicles.ts",
+    "db:seed:images": "tsx src/scripts/seed-images.ts",
+    "db:seed": "npm run db:seed:vehicles && npm run db:seed:images"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
