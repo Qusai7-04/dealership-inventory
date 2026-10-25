@@ -1,6 +1,6 @@
 # Car Dealership Inventory System
 
-The Incubyte full-stack kata for a shared, login-protected vehicle catalogue. The TypeScript/Express backend includes PostgreSQL health checks, migrations, registration, login, bearer-token authentication, and reusable role authorization. Inventory endpoints and the frontend are not implemented yet.
+The Incubyte full-stack kata for a shared, login-protected vehicle catalogue. The TypeScript/Express backend includes PostgreSQL health checks, migrations, authentication, authorization, and vehicle inventory APIs. The React/Tailwind frontend currently provides the application scaffold; inventory screens are not implemented yet.
 
 ## Product and assignment scope
 
@@ -28,6 +28,30 @@ The brief describes vehicle operations as protected, explicitly limits deletion 
 | `POST /api/vehicles/:id/restock` | Admin | Add positive stock and record receipt |
 
 The selected backend stack is Node.js/TypeScript with Express and `pg`, **PostgreSQL** for persistence, and React with HTML5, CSS3, and Tailwind CSS for the planned SPA. The implementation should keep routes/controllers, business logic, and database access separate.
+
+## Repository layout and commands
+
+```text
+backend/       Express application, PostgreSQL migrations, and backend tests
+frontend/      Vite React application and Tailwind styles
+docs/          Project and database design documentation
+reference-docs Assignment source documents (kept local by `.gitignore`)
+```
+
+Run `npm install` once from the repository root. The root npm workspace then provides these commands:
+
+| Command | Purpose |
+|---|---|
+| `npm test` | Run all backend unit and PostgreSQL integration tests |
+| `npm run build` | Build the backend and frontend |
+| `npm run build:backend` | Build only the backend |
+| `npm run build:frontend` | Build only the frontend |
+| `npm run migrate` | Build the backend and apply pending migrations |
+| `npm run dev:backend` | Run the backend in watch mode on port 3000 by default |
+| `npm run dev:frontend` | Run the frontend development server on port 5173 by default |
+| `npm start` | Start the compiled backend |
+
+The frontend development server proxies `/api` and `/health` to `http://localhost:3000`. It communicates with PostgreSQL only through the backend HTTP API.
 
 ## Database overview
 
@@ -200,7 +224,7 @@ The development environment uses Docker Compose to run PostgreSQL 17 in an isola
    ```powershell
    npm run migrate
    ```
-   The migration runner executes pending scripts in `migrations/` inside transactions and tracks them in `schema_migrations`.
+   The migration runner executes pending scripts in `backend/migrations/` inside transactions and tracks them in `schema_migrations`.
 
 5. **Verify database relations:**
    ```powershell
@@ -217,7 +241,7 @@ The development environment uses Docker Compose to run PostgreSQL 17 in an isola
 
 ## Backend foundation
 
-Run `npm install`, then `npm run dev` for development or `npm run build` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it.
+Run `npm run dev:backend` for backend development or `npm run build:backend` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it. Keep `.env` at the repository root; workspace commands load it from there.
 - `GET /health` returns `{"status":"ok"}` (liveness check, does not require PostgreSQL).
 - `GET /health/db` checks live database connectivity via `SELECT 1;` and returns `{"status":"ok","database":"connected"}` or `503` if unreachable.
 - Set `TEST_DATABASE_URL` to a dedicated database whose name ends in `_test`, then run `npm test`. Integration tests fail fast instead of falling back to the development database.
@@ -302,4 +326,4 @@ Migrations `002_create_stock_receipts.sql` and `003_add_stock_receipt_result_qua
 
 Codex was used to review the assignment and database design, draft and revise TypeScript/SQL implementation, write Vitest and Supertest tests, run PostgreSQL integration checks, diagnose failures, and document the verified behavior. The original feature commits combined tests and implementation; the later remediation commits record truthful test-first red and green steps without rewriting that history. The project owner still needs to add their personal reflection before submission.
 
-[PROMPTS.md](PROMPTS.md) preserves supplied prompts and labels generated implementation summaries as summaries. It does not yet contain the raw, unedited AI response logs or public chat links required by the Kata; the project owner must add those original records. Every AI-assisted commit uses the `Co-authored-by:` trailer.
+[PROMPTS.md](PROMPTS.md) preserves exact user prompts recovered from accessible Codex history. It does not yet contain the raw, unedited AI response logs or public chat links required by the Kata; the project owner must add those original records. Every AI-assisted commit uses the `Co-authored-by:` trailer.

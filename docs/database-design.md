@@ -196,6 +196,6 @@ Notifications use a stable key derived from the stock-changing operation and eve
 
 Admin vehicle deletion sets `deleted_at`, preserving receipts and purchase history. It does not erase existing cart items; those show the listing as unavailable and block checkout until removed. A category used by a vehicle cannot be physically deleted without reclassification. Purchases, purchase items, and receipts are immutable and cannot be cascaded away. User physical deletion is restricted while dependent records exist; an account can instead be deactivated with `is_active = false`. Explicit favourite/cart-item/image deletion is allowed as part of normal user/admin operations. No cascading parent deletion is required for the current design.
 
-## Open decisions before implementation
+## Open decisions
 
-The backend uses Node.js/TypeScript with Express and `pg`; initial migrations exist for `users`, `vehicle_categories`, and `vehicles` in `migrations/001_create_users_categories_vehicles.sql`. Registration and login are implemented; unverified active accounts may log in because email verification still has no workflow. The active make/model identity assumes the model label includes any meaningful variant; separate year or trim fields would require a revised uniqueness rule.
+The backend uses Node.js/TypeScript with Express and `pg`; initial migrations exist for `users`, `vehicle_categories`, and `vehicles` in `backend/migrations/001_create_users_categories_vehicles.sql`. Registration and login are implemented; unverified active accounts may log in because email verification still has no workflow. The active make/model identity assumes the model label includes any meaningful variant; separate year or trim fields would require a revised uniqueness rule.
