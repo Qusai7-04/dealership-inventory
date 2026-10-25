@@ -130,6 +130,21 @@ describe('Authentication integration', () => {
     expect(response.body).toEqual({ error: 'Invalid email or password' });
   });
 
+  it('does not authenticate a password that only matches after bcrypt truncation', async () => {
+    const boundaryEmail = `${emailPrefix}-bcrypt-boundary@example.com`;
+    const boundaryPassword = `${'A'.repeat(71)}!`;
+    expect((await request(app).post('/api/auth/register').send({
+      fullName: 'Boundary User', email: boundaryEmail, password: boundaryPassword,
+    })).status).toBe(201);
+
+    const response = await request(app).post('/api/auth/login').send({
+      email: boundaryEmail,
+      password: `${boundaryPassword}unexpected-suffix`,
+    });
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid email or password' });
+  });
+
   it.each([
     [undefined],
     ['Token abc'],
