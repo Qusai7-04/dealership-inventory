@@ -10,3 +10,6 @@ build/
 
 # Logs
 *.log
+
+# Reference documents
+reference-docs/
