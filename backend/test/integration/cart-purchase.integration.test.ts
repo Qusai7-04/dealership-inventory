@@ -91,4 +91,19 @@ describe('cart and purchase integration', () => {
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(3);
     await request(app).delete('/api/cart/items/bad').set(bearer(0)).expect(400);
   });
+
+  it('buys one unit directly and stores immutable server-side snapshots', async () => {
+    const id = await vehicle('direct', 1, '12.35');
+    const requestId = crypto.randomUUID();
+    await request(app).post(`/api/vehicles/${id}/purchase`).send({ requestId }).expect(401);
+    await request(app).post('/api/vehicles/bad/purchase').set(bearer(0)).send({ requestId }).expect(400);
+    await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: 'bad' }).expect(400);
+    await request(app).post(`/api/vehicles/${crypto.randomUUID()}/purchase`).set(bearer(0)).send({ requestId }).expect(404);
+    const bought = await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId }).expect(200);
+    expect(bought.body.purchase).toMatchObject({ source: 'direct', totalPrice: '12.35', items: [{ vehicleId: id, unitPrice: '12.35' }] });
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(0);
+    await pool.query("UPDATE vehicles SET make = make || '-new', price = 99 WHERE id = $1", [id]);
+    expect((await pool.query('SELECT vehicle_label, unit_price FROM purchase_items WHERE purchase_id = $1', [bought.body.purchase.id])).rows[0]).toMatchObject({ unit_price: '12.35' });
+    await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(1)).send({ requestId: crypto.randomUUID() }).expect(409);
+  });
 });
