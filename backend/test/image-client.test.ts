@@ -149,6 +149,86 @@ describe('CarImageClient and Image Seeder', () => {
         client.fetchAndCacheImage({ make: 'Honda', model: 'Amaze', year: 2024 })
       ).rejects.toThrow(/Credits exhausted/i);
     });
+
+    it('falls back to catalog resolve when direct lookup returns 404 and fetches using vehicle id', async () => {
+      const calls: string[] = [];
+      // Create valid WebP header: 'RIFF....WEBP'
+      const validWebP = Buffer.alloc(32);
+      validWebP.write('RIFF', 0);
+      validWebP.writeUInt32LE(24, 4);
+      validWebP.write('WEBP', 8);
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const u = url.toString();
+        calls.push(u);
+        if (u.includes('/images/car?') && u.includes('make=Maruti+Suzuki')) {
+          return { ok: false, status: 404, statusText: 'Not Found', headers: new Headers() } as any;
+        }
+        if (u.includes('/images/resolve')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                params: { vehicle_id: 'veh_test_swift123', make: 'suzuki', model: 'swift', year: 2024 },
+                confidence: 'high',
+              },
+            }),
+          } as any;
+        }
+        if (u.includes('/images/car?') && u.includes('vehicle=veh_test_swift123')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'image/webp' }),
+            arrayBuffer: async () => validWebP,
+          } as any;
+        }
+        return { ok: false, status: 404 } as any;
+      });
+
+      const client = new CarImageClient({
+        apiKey: 'cimg_test_key',
+        storageDir: tempStorageDir,
+      });
+
+      const res = await client.fetchAndCacheImage({
+        make: 'Maruti Suzuki',
+        model: 'Swift',
+        year: 2024,
+      });
+
+      expect(res).not.toBeNull();
+      expect(calls.some((c) => c.includes('/images/resolve'))).toBe(true);
+      expect(calls.some((c) => c.includes('vehicle=veh_test_swift123'))).toBe(true);
+      expect(res?.url).toBe('/images/vehicles/maruti_suzuki_swift_2024.webp');
+
+      // Verify manifest exists and does not contain API key
+      const manifestPath = path.join(tempStorageDir, 'manifest.json');
+      expect(fs.existsSync(manifestPath)).toBe(true);
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      expect(manifest.images['maruti_suzuki_swift_2024.webp']).toBeDefined();
+      expect(manifest.images['maruti_suzuki_swift_2024.webp'].resolvedVehicleId).toBe('veh_test_swift123');
+      expect(JSON.stringify(manifest)).not.toContain('cimg_test_key');
+    });
+
+    it('rejects corrupt non-image payloads such as HTML or JSON error bodies', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'text/html' }),
+        arrayBuffer: async () => Buffer.from('<!DOCTYPE html><html><body>Error</body></html>'),
+      });
+
+      const client = new CarImageClient({
+        apiKey: 'cimg_test_key',
+        storageDir: tempStorageDir,
+      });
+
+      await expect(
+        client.fetchAndCacheImage({ make: 'Honda', model: 'City', year: 2024 })
+      ).rejects.toThrow(/Invalid image binary signature/i);
+    });
   });
 
   describe('Local Caching', () => {
