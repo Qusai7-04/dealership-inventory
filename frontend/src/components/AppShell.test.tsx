@@ -84,7 +84,7 @@ describe('AppShell: Compact Header, Cart Drawer & Interactive Footer', () => {
     // Drawer opens showing line items and subtotal
     expect(await screen.findByRole('heading', { name: /your cart/i })).toBeInTheDocument();
     expect(screen.getByText('Honda City V')).toBeInTheDocument();
-    expect(screen.getByText('₹13,10,000.00')).toBeInTheDocument();
+    expect(screen.getAllByText('₹13,10,000.00')).toHaveLength(2);
 
     // Close button dismisses the drawer
     const closeBtn = screen.getByRole('button', { name: /close cart drawer/i });

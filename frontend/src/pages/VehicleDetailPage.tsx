@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { assetUrl } from '../api/urls';
 import { PageState } from '../components/PageState';
+import { VehicleImage } from '../components/VehicleImage';
 import { useAuth } from '../features/auth/AuthProvider';
 import { formatPrice } from '../features/vehicles/VehicleCard';
 import { addVehicleToCart, purchaseVehicle, saveVehicle } from '../features/vehicles/actions';
@@ -111,14 +111,10 @@ export function VehicleDetailPage() {
 
               {/* Viewport Frame */}
               <div className="relative w-full aspect-[16/10] bg-paper-recessed rounded-xl border-[1.5px] border-ink-solid overflow-hidden mb-4 group">
-                <img
-                  id="mainShowroomImage"
-                  src={activeImage ? assetUrl(activeImage.url) : '/images/vehicle-placeholder.svg'}
+                <VehicleImage
+                  src={activeImage?.url}
                   alt={activeImage?.altText ?? `Image unavailable for ${vehicle.make} ${vehicle.model}`}
                   className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
-                  onError={(e) => {
-                    e.currentTarget.src = '/images/vehicle-placeholder.svg';
-                  }}
                 />
 
                 {/* Translucent Telemetry Glass HUD */}
@@ -169,8 +165,8 @@ export function VehicleDetailPage() {
                           : 'border-ink-solid opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img
-                        src={assetUrl(img.url)}
+                      <VehicleImage
+                        src={img.url}
                         alt={img.altText}
                         className="w-full h-full object-cover rounded-sm"
                       />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { assetUrl } from '../../api/urls';
+import { VehicleImage } from '../../components/VehicleImage';
 import type { Vehicle } from '../../types/api';
 
 const currency = new Intl.NumberFormat('en-IN', {
@@ -110,9 +110,9 @@ export function VehicleCard({
 
           {/* Favourite Heart Key */}
           <button
-            className={`fav-btn w-8 h-8 rounded-full bg-paper-base border-[1.5px] border-ink-solid flex items-center justify-center transition-all shadow-[0_1px_0_#16150F] active:translate-y-0.5 ${
+            className={`fav-btn w-8 h-8 rounded-full bg-paper-base border-[1.5px] border-ink-solid flex items-center justify-center transition-all shadow-[0_1px_0_#16150F] active:translate-y-0.5 active:scale-95 ${
               isFavourited
-                ? 'text-alert-red bg-paper-surface'
+                ? 'text-alert-red bg-paper-surface scale-105'
                 : 'text-ink-muted hover:text-alert-red hover:bg-paper-surface'
             }`}
             aria-label={`Save ${vehicle.make} ${vehicle.model} to favourites`}
@@ -120,7 +120,7 @@ export function VehicleCard({
             onClick={() => perform('favourite', () => onFavourite(vehicle))}
             title="Watchlist Chassis"
           >
-            <span className="material-symbols-outlined text-[18px]">
+            <span className={`material-symbols-outlined text-[18px] transition-transform duration-200 ${isFavourited ? 'scale-110 text-alert-red' : ''}`}>
               {isFavourited ? 'favorite' : 'favorite_border'}
             </span>
           </button>
@@ -128,15 +128,10 @@ export function VehicleCard({
 
         {/* Vehicle Image Container — ALWAYS FULL COLOR AND READABLE */}
         <div className="vehicle-image-wrap relative w-full h-48 rounded-xl overflow-hidden mb-3 bg-paper-recessed border-[1.5px] border-ink-solid group-hover:scale-[1.01] transition-transform">
-          <img
-            className={`vehicle-image w-full h-full object-cover transition-opacity duration-300 ${
-              !available ? 'opacity-90 saturate-[0.85]' : ''
-            }`}
-            src={cover ? assetUrl(cover.url) : '/images/vehicle-placeholder.svg'}
+          <VehicleImage
+            className="vehicle-image w-full h-full object-cover transition-opacity duration-300"
+            src={cover?.url}
             alt={cover?.altText ?? `Image unavailable for ${vehicle.make} ${vehicle.model}`}
-            onError={(event) => {
-              event.currentTarget.src = '/images/vehicle-placeholder.svg';
-            }}
           />
 
           {/* Lot / Stock Identifier Tag */}
