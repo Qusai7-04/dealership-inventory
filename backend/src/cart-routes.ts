@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from './auth.js';
 import { addCartItem, clearCart, getCart, removeCartItem } from './cart-service.js';
+import { checkout } from './purchase-service.js';
 
 const router = Router();
 
@@ -20,6 +21,10 @@ router.delete('/items/:vehicleId', authenticate, async (request, response, next)
 
 router.delete('/', authenticate, async (request, response, next) => {
   try { response.json(await clearCart(request.user!.id)); } catch (error) { next(error); }
+});
+
+router.post('/checkout', authenticate, async (request, response, next) => {
+  try { response.json({ purchase: await checkout(request.user!.id, request.body) }); } catch (error) { next(error); }
 });
 
 export default router;

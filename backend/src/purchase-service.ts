@@ -60,3 +60,62 @@ export async function directPurchase(userId: string, vehicleId: string, input: u
     throw error;
   } finally { client.release(); }
 }
+
+export async function checkout(userId: string, input: unknown) {
+  const requestId = requestIdFrom(input);
+  const body = input as { requestId: string; items?: unknown };
+  if (Object.keys(body).some((key) => !['requestId', 'items'].includes(key)) || !Array.isArray(body.items) || body.items.some((item) =>
+    !item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).sort().join(',') !== 'price,vehicleId' ||
+    typeof item.vehicleId !== 'string' || !uuid.test(item.vehicleId) || typeof item.price !== 'string' || !/^\d+(\.\d{2})$/.test(item.price)
+  )) throw new AppError(400, 'Items must contain vehicleId and confirmed price');
+  const requested = (body.items as { vehicleId: string; price: string }[]).sort((a, b) => a.vehicleId.localeCompare(b.vehicleId));
+  if (new Set(requested.map((item) => item.vehicleId)).size !== requested.length) throw new AppError(400, 'Duplicate vehicle ID');
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`purchase:${userId}:${requestId}`]);
+    const prior = (await client.query<{ id: string; source: string; vehicle_id: string; unit_price: string }>(
+      `SELECT p.id, p.source, pi.vehicle_id, pi.unit_price FROM purchases p
+       JOIN purchase_items pi ON pi.purchase_id = p.id WHERE p.user_id = $1 AND p.request_id = $2 ORDER BY pi.vehicle_id`, [userId, requestId]
+    )).rows;
+    if (prior.length) {
+      if (prior[0].source !== 'cart' || prior.length !== requested.length || prior.some((item, index) => item.vehicle_id !== requested[index].vehicleId || item.unit_price !== requested[index].price)) {
+        throw new AppError(409, 'Request ID was already used for a different purchase');
+      }
+      const result = await purchaseResult(client, prior[0].id);
+      await client.query('COMMIT');
+      return result;
+    }
+    const cart = (await client.query<{ id: string }>('SELECT id FROM carts WHERE user_id = $1 FOR UPDATE', [userId])).rows[0];
+    if (!cart) throw new AppError(409, 'Cart is empty');
+    const selected = (await client.query<{ vehicle_id: string }>('SELECT vehicle_id FROM cart_items WHERE cart_id = $1 ORDER BY vehicle_id FOR UPDATE', [cart.id])).rows;
+    if (!selected.length) throw new AppError(409, 'Cart is empty');
+    if (selected.length !== requested.length || selected.some((item, index) => item.vehicle_id !== requested[index].vehicleId)) throw new AppError(409, 'Cart contents have changed');
+    const vehicles = [] as { id: string; make: string; model: string; price: string; quantity: number; deleted_at: Date | null }[];
+    for (const item of requested) {
+      const vehicle = (await client.query<(typeof vehicles)[number]>('SELECT id, make, model, price, quantity, deleted_at FROM vehicles WHERE id = $1 FOR UPDATE', [item.vehicleId])).rows[0];
+      if (!vehicle || vehicle.deleted_at || vehicle.quantity < 1) throw new AppError(409, `Vehicle ${item.vehicleId} is unavailable`);
+      if (vehicle.price !== item.price) throw new AppError(409, `Price changed for vehicle ${item.vehicleId}`);
+      vehicles.push(vehicle);
+    }
+    const purchase = (await client.query<{ id: string }>(
+      `INSERT INTO purchases (user_id, source, request_id, total_price)
+       SELECT $1, 'cart', $2, sum(price) FROM vehicles WHERE id = ANY($3::uuid[]) RETURNING id`,
+      [userId, requestId, requested.map((item) => item.vehicleId)]
+    )).rows[0];
+    for (const vehicle of vehicles) {
+      const updated = await client.query('UPDATE vehicles SET quantity = quantity - 1, updated_at = now() WHERE id = $1 AND quantity > 0 AND deleted_at IS NULL', [vehicle.id]);
+      if (updated.rowCount !== 1) throw new AppError(409, `Vehicle ${vehicle.id} is unavailable`);
+      await client.query('INSERT INTO purchase_items (purchase_id, vehicle_id, vehicle_label, unit_price) VALUES ($1, $2, $3, $4)',
+        [purchase.id, vehicle.id, `${vehicle.make} ${vehicle.model}`, vehicle.price]);
+    }
+    await client.query('DELETE FROM cart_items WHERE cart_id = $1', [cart.id]);
+    await client.query('UPDATE carts SET updated_at = now() WHERE id = $1', [cart.id]);
+    const result = await purchaseResult(client, purchase.id);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
