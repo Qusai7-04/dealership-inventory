@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
 import { PageState } from '../components/PageState';
+import { VehicleImage } from '../components/VehicleImage';
 import { useAuth } from '../features/auth/AuthProvider';
 import { formatPrice } from '../features/vehicles/VehicleCard';
 import type { Category, InventorySummary, StockReceipt, Vehicle, VehicleListResponse } from '../types/api';
@@ -12,6 +13,8 @@ export function AdminPage() {
   const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [showIntakeModal, setShowIntakeModal] = useState(false);
@@ -110,7 +113,27 @@ export function AdminPage() {
     }
   }
 
-  // Filter vehicles on client for search & class
+  async function handleGenerateImage(vehicle: Vehicle) {
+    setGeneratingId(vehicle.id);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await api.post<{ status: string; vehicleId: string; image: any }>(
+        `/api/vehicles/${vehicle.id}/generate-image`,
+        {}
+      );
+      setVehicles((prev) =>
+        prev.map((v) => (v.id === vehicle.id ? { ...v, images: [res.image] } : v))
+      );
+      setMessage('Chassis image generated successfully.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Image generation failed');
+    } finally {
+      setGeneratingId(null);
+    }
+  }
+
+  // Filter vehicles on client for search, class & stock status
   const filteredVehicles = vehicles.filter((v) => {
     const matchesSearch =
       !search ||
@@ -118,7 +141,15 @@ export function AdminPage() {
       v.model.toLowerCase().includes(search.toLowerCase()) ||
       v.id.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = !categoryFilter || String(v.category.id) === categoryFilter;
-    return matchesSearch && matchesCategory;
+    const matchesStock =
+      stockFilter === 'all'
+        ? true
+        : stockFilter === 'in_stock'
+        ? v.quantity > 0
+        : stockFilter === 'low_stock'
+        ? v.quantity > 0 && v.quantity <= v.lowStockThreshold
+        : v.quantity === 0;
+    return matchesSearch && matchesCategory && matchesStock;
   });
 
   return (
@@ -226,7 +257,7 @@ export function AdminPage() {
                 <span className="material-symbols-outlined text-[16px] text-attention-orange">warning</span>
               </div>
               <div className="font-price-lg text-headline-md font-bold text-attention-orange">
-                {summary.lowStockLines.toString().padStart(2, '0')}
+                {(summary.lowStockLines ?? 0).toString().padStart(2, '0')}
               </div>
               <div className="mt-2 text-stamp-badge font-data-mono text-ink-muted">
                 Restock trigger urgent
@@ -240,7 +271,7 @@ export function AdminPage() {
                 <span className="material-symbols-outlined text-[16px] text-alert-red">block</span>
               </div>
               <div className="font-price-lg text-headline-md font-bold text-ink-subtle">
-                {summary.outOfStockLines.toString().padStart(2, '0')}
+                {(summary.outOfStockLines ?? 0).toString().padStart(2, '0')}
               </div>
               <div className="mt-2 text-stamp-badge font-data-mono text-ink-muted">
                 Tear-sheets filed
@@ -278,7 +309,7 @@ export function AdminPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -292,11 +323,23 @@ export function AdminPage() {
               ))}
             </select>
 
+            <select
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value as any)}
+              className="bg-paper-base border-[1.5px] border-ink-solid rounded-lg px-3 py-2 font-label-nav text-xs text-ink-solid"
+            >
+              <option value="all">All Stock Levels</option>
+              <option value="in_stock">In Stock (&gt;0)</option>
+              <option value="low_stock">Low Stock (≤ Threshold)</option>
+              <option value="out_of_stock">Out of Stock (0 Units)</option>
+            </select>
+
             <button
               type="button"
               onClick={() => {
                 setSearch('');
                 setCategoryFilter('');
+                setStockFilter('all');
               }}
               className="px-3 py-2 bg-paper-recessed text-ink-solid rounded-lg border-[1.5px] border-ink-solid font-label-nav text-xs"
             >
@@ -308,19 +351,30 @@ export function AdminPage() {
         {/* INVENTORY TABLE & SIDE PANEL */}
         <section className="space-y-4">
           <div className="inventory-table-wrap overflow-x-auto border-[1.5px] border-ink-solid rounded-xl shadow-[0_4px_0_#16150F] bg-paper-surface">
-            <table className="inventory-table w-full text-left border-collapse min-w-[760px]">
+            <table className="inventory-table w-full text-left border-collapse min-w-[860px]">
               <thead>
                 <tr className="bg-ink-solid text-paper-base font-stamp-badge text-[10px] uppercase tracking-wider">
+                  <th className="py-3 px-4 w-28">Specimen</th>
                   <th className="py-3 px-4">Chassis Specimen</th>
                   <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4">Showroom Price</th>
                   <th className="py-3 px-4">Floor Stock</th>
+                  <th className="py-3 px-4">Image Asset</th>
                   <th className="py-3 px-4 text-right">Ledger Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-solid/20 font-data-mono text-body-sm bg-paper-base">
                 {filteredVehicles.map((vehicle) => (
                   <tr key={vehicle.id} className="hover:bg-paper-surface/60 transition-colors">
+                    <td className="py-3 px-4 w-28">
+                      <div className="w-24 h-14 rounded overflow-hidden border border-ink-solid bg-paper-surface">
+                        <VehicleImage
+                          src={vehicle.images?.[0]?.url}
+                          alt={`${vehicle.make} ${vehicle.model}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </td>
                     <td className="py-3 px-4">
                       <div className="font-sans font-bold text-ink-solid text-sm">
                         {vehicle.make}{' '}
@@ -354,6 +408,28 @@ export function AdminPage() {
                           ? '0 UNITS (DEPLETED)'
                           : `${vehicle.quantity} UNITS`}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 font-data-mono text-xs">
+                      {vehicle.images && vehicle.images.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-live-lime/40 text-ink-solid border border-ink-solid text-[10px] font-bold">
+                          <span className="material-symbols-outlined text-[12px] text-action-blue">check</span>
+                          <span>Cached WebP</span>
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 rounded bg-paper-recessed text-ink-muted border border-dashed border-ink-solid text-[10px]">
+                            Missing
+                          </span>
+                          <button
+                            type="button"
+                            disabled={generatingId === vehicle.id}
+                            onClick={() => handleGenerateImage(vehicle)}
+                            className="px-2 py-1 bg-action-blue hover:bg-action-blue-deep text-on-primary rounded font-label-nav text-[10px] font-bold uppercase transition-all shadow-[0_1px_0_#1932D4] disabled:opacity-50"
+                          >
+                            {generatingId === vehicle.id ? 'Generating…' : 'Generate Image'}
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="table-actions py-3 px-4 text-right space-x-2 font-label-nav text-xs font-bold">
                       <button
@@ -518,7 +594,7 @@ export function AdminPage() {
                     type="submit"
                     className="px-5 py-2.5 bg-action-blue hover:bg-action-blue-deep text-on-primary font-label-nav text-xs font-bold rounded-lg border-[1.5px] border-ink-solid shadow-[0_2px_0_#1932D4]"
                   >
-                    {edit ? 'Save Changes' : 'Record New Intake'}
+                    {edit ? 'Save Changes' : 'Register Chassis'}
                   </button>
                 </div>
               </form>

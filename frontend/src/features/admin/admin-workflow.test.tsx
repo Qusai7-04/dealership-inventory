@@ -31,13 +31,11 @@ vi.mock('../../features/auth/AuthProvider', () => ({
 }));
 
 const sampleSummary: InventorySummary = {
-  totalVehicles: 35,
-  totalQuantity: 27,
-  lowStockCount: 3,
-  outOfStockCount: 5,
-  totalValue: '119100000.00',
-  activeListings: 35,
-  inactiveListings: 0,
+  activeStockLines: 35,
+  inStockLines: 30,
+  lowStockLines: 3,
+  outOfStockLines: 5,
+  totalUnits: 27,
 };
 
 const sampleVehicleWithoutImage: Vehicle = {
