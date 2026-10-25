@@ -130,4 +130,18 @@ describe('favourites and targeted notifications', () => {
     await request(app).get('/api/notifications').set(bearer(0)).query({ page: 0 }).expect(400);
     await request(app).get('/api/notifications').set(bearer(0)).query({ limit: 101 }).expect(400);
   });
+
+  it('notifies active admins only when a direct purchase crosses into positive low stock', async () => {
+    const id = await vehicle('low-direct', 4, 3);
+    await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
+    const alerts = await pool.query("SELECT recipient_id, type, event_key FROM notifications WHERE vehicle_id = $1 ORDER BY recipient_id", [id]);
+    expect(alerts.rows.map((row) => row.recipient_id).sort()).toEqual([users[2], users[3]].sort());
+    expect(alerts.rows.map((row) => row.type)).toEqual(['low_stock', 'low_stock']);
+    expect(new Set(alerts.rows.map((row) => row.event_key)).size).toBe(1);
+    await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [id])).rows[0].count).toBe(2);
+    const zeroThreshold = await vehicle('threshold-zero', 2, 0);
+    await request(app).post(`/api/vehicles/${zeroThreshold}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [zeroThreshold])).rows[0].count).toBe(0);
+  });
 });
