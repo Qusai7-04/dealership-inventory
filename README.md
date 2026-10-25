@@ -295,6 +295,7 @@ Authenticated catalogue reads exclude soft-deleted vehicles:
 | `PUT /api/vehicles/:id` | Admin | Edit catalogue fields without changing quantity |
 | `DELETE /api/vehicles/:id` | Admin | Soft-delete a stock line |
 | `POST /api/vehicles/:id/restock` | Admin | Atomically add stock and record an idempotent receipt |
+| `POST /api/vehicles/:id/purchase` | Authenticated | Buy one unit immediately |
 
 List query parameters are `page` (default 1), `limit` (default 20, maximum 100), `search` (make or model), `categoryId`, `minPrice`, `maxPrice`, `available`, `sort` (`make`, `model`, `price`, `quantity`, or `createdAt`), and `direction` (`asc` or `desc`). Responses contain `vehicles` and `{page, limit, total, totalPages}` pagination metadata.
 
@@ -321,6 +322,25 @@ Content-Type: application/json
 ```
 
 Migrations `002_create_stock_receipts.sql` and `003_add_stock_receipt_result_quantity.sql` record opening inventory, restocks, and the quantity returned by an idempotent replay. Stock changes and their receipt records commit together, while PostgreSQL atomic updates prevent concurrent restocks from overwriting each other.
+
+## Cart and purchase API
+
+Migration `004_create_carts_and_purchases.sql` adds reusable carts, one-unit cart items, purchase headers, and immutable sale snapshots. Run `npm run migrate` to apply it. All routes below require `Authorization: Bearer <token>`; the server derives the owner from that token. Prices and stock come from PostgreSQL. No payment is collected.
+
+| Method and route | Request | Success |
+|---|---|---|
+| `GET /api/cart` | None | `{cart, items, itemCount, subtotal}`; `cart` is `null` until the first successful add |
+| `POST /api/cart/items` | `{"vehicleId":"<uuid>"}` | Current cart; repeated add keeps one item |
+| `DELETE /api/cart/items/:vehicleId` | None | Current cart; absent item is safe |
+| `DELETE /api/cart` | None | Empty current cart; reusable cart row remains |
+| `POST /api/vehicles/:id/purchase` | `{"requestId":"<uuid>"}` | `{purchase}` for one unit |
+| `POST /api/cart/checkout` | `{"requestId":"<uuid>","items":[{"vehicleId":"<uuid>","price":"10.25"}]}` | `{purchase}` for the exact confirmed cart |
+
+Cart items contain `vehicleId`, current `label`, `price` as a decimal string, `stock`, and `available`. The `subtotal` is a decimal string based on current prices. Unavailable and soft-deleted entries remain visible until removed. Adding items never reserves or changes stock.
+
+Checkout requires every cart vehicle exactly once with its current `price` string (two decimal places). The response `purchase` contains `id`, `source` (`direct` or `cart`), `totalPrice` as a decimal string, `purchasedAt`, and `items` with `vehicleId`, historical `vehicleLabel`, and `unitPrice`. A purchase has no payment status because the API records inventory sales only.
+
+Send a fresh UUID `requestId` for each intended purchase. An exact retry returns the original purchase, including after checkout has emptied the cart. Reusing that key for a different source, vehicle set, or confirmed checkout prices returns `409`. Checkout validates current prices and stock again, locks all selected stock lines in ID order, and commits stock, history, and cart clearing together. A changed price, unavailable item, changed cart, or empty cart returns `409` without a partial sale; errors for unavailable items identify the vehicle ID. Invalid IDs or request bodies return `400`, missing or deleted direct-purchase vehicles return `404`, and missing authentication returns `401`. Zero-stock direct purchases return `409`.
 
 ## My AI Usage
 

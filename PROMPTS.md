@@ -677,3 +677,226 @@ The previous review reported that `npm run migrate` could fail inside `tsx` on W
 Keep the Git history intact. Do not reset, rebase, squash, amend, force-push, or push anything to GitHub. Preserve any existing user changes and never overwrite them without checking. Follow the Kata's AI co-authorship requirements for any commits. Use a focused structural refactor commit for the code move and a separate documentation commit for the prompt-history corrections where appropriate. Do not manufacture Red-Green-Refactor commits for a behavior-preserving folder move. If an actual behavior defect needs fixing, keep it separate and use a genuine failing-test-first cycle.
 
 At the end, give me a clear summary of the final repository structure, major files moved, package and development commands, the exact tests and builds performed with their results, any remaining issues, the commits created, and the final Git status. Confirm explicitly that nothing was pushed.
+
+
+## Backend cart and purchase implementation prompt (2026-10-25)
+
+I want to implement the complete cart and purchase functionality in the BACKEND ONLY. Frontend development has not started yet, so do not implement, modify, or build any frontend features as part of this task.
+
+Work directly in the existing repository at `C:\PROJECTS\Dealership Inventory`. Read the Kata document at `reference-docs/AI_Kata_Car_Dealership_Inventory_System_V2.pdf`, `README.md`, `docs/database-design.md`, and `AGENTS.md` before making changes. Use the assignment and existing project documentation as the source of truth. If the Kata PDF cannot be found, report that honestly and proceed using the available repository requirements.
+
+The task is to implement and thoroughly test the backend cart API, direct purchase API, cart checkout API, database schema, transactional inventory updates, purchase history, idempotency, and concurrency handling. The existing frontend is only a scaffold and must remain untouched. You may define and document API contracts for future frontend integration, but do not create frontend components, screens, state management, frontend API calls, frontend tests, or frontend dependencies.
+
+The most important requirement is genuine TDD throughout this implementation. Follow the Red-Green-Refactor process required by the Kata. Do not implement everything first and write tests afterward.
+
+For each distinct behavior, add a focused test first, run it, and confirm that it fails for the expected reason. Commit the failing test as a RED commit. Then implement the smallest correct change, rerun the relevant test, and commit the passing implementation separately as a GREEN commit. Only create a REFACTOR commit when a genuine behavior-preserving improvement is justified and the relevant tests pass. Do not manufacture failing tests simply to create commits, and never claim that a RED test was observed unless you actually ran it and saw the expected failure.
+
+## 1. Inspect the current repository before coding
+
+Start by checking the current Git status, branch, recent commit history, package scripts, database connection and migration setup, existing backend routes, controllers, services, repositories, authentication and authorization middleware, vehicle API behavior, stock receipt handling, integration-test helpers, and current schema.
+
+Run the existing backend test suite and build before changing anything, where possible. Record any pre-existing failures separately from regressions introduced by your changes.
+
+The repository has recently been restructured into `backend/` and `frontend/`. Keep that structure intact. This task is backend-only:
+
+- All new application code and backend tests belong in `backend/`.
+- Database migrations belong in `backend/migrations/`.
+- Update root documentation only where needed to document backend APIs, schema, testing, or development commands.
+- Do not edit files inside `frontend/`.
+- Do not add frontend dependencies, implement UI screens, or run a frontend implementation task.
+- Do not rewrite or undo the existing repository restructuring.
+
+Preserve all existing changes and commit history. Do not reset, rebase, squash, amend, force-push, or push anything to GitHub.
+
+## 2. Cart and purchase rules
+
+Follow the existing database design. Each `vehicles` row represents a shared stock line for a make and model/variant, not an individual VIN-tracked car.
+
+A cart belongs to one authenticated user. Each distinct vehicle can appear at most once in a cart, and each cart item represents exactly one unit. The documented design intentionally does not store a quantity or price in `cart_items`.
+
+Adding an item to the cart does not reserve stock or decrement inventory. Stock must be checked again when the user purchases the item.
+
+A vehicle must be active and in stock when first added to a cart. If it later becomes unavailable or soft-deleted, its cart entry should remain readable so the owner can understand the problem and remove it. Do not silently remove unavailable items.
+
+Adding the same vehicle more than once must be idempotent and must not create duplicate cart items. Removing an item or clearing the cart must not modify vehicle stock.
+
+A cart should be created lazily on the user's first successful add operation. Reading an empty cart must not create a cart row unnecessarily. Clearing an empty or nonexistent cart should return a consistent empty result without errors. After successful checkout, preserve the reusable cart record but remove its purchased items.
+
+Every operation must obtain the user's identity from the existing authenticated server-side context. Never accept a client-supplied user ID as proof of cart ownership. A user must never be able to access or modify another user's cart by manipulating IDs.
+
+The system does not process payments. A successful purchase records the sale and decreases shared inventory. Do not introduce payment processing, reservations, refunds, rentals, VIN tracking, or unrelated functionality.
+
+## 3. Database schema and migration
+
+Inspect the existing migrations and actual database schema before deciding what needs to be created. The current design describes the following tables; implement only what is genuinely missing.
+
+**`carts`**
+
+A UUID primary key, user foreign key, creation and update timestamps, and a unique constraint on `user_id` so each user owns at most one reusable cart.
+
+**`cart_items`**
+
+A cart foreign key, vehicle foreign key, and added timestamp. Use a composite primary key on `(cart_id, vehicle_id)`, preventing duplicates. Do not add quantity or stored price fields because the documented model represents exactly one unit per stock line.
+
+**`purchases`**
+
+A UUID primary key, user foreign key, source constrained to `direct` or `cart`, request ID, total price using PostgreSQL `numeric`, and purchase timestamp. Enforce unique `(user_id, request_id)` for idempotency.
+
+**`purchase_items`**
+
+A UUID primary key, purchase foreign key, vehicle foreign key, nonblank `vehicle_label` snapshot, and nonnegative `unit_price` using PostgreSQL `numeric`. Enforce unique `(purchase_id, vehicle_id)` so a purchase contains a given stock line at most once.
+
+Follow the documented foreign-key policies, checks, UUID conventions, timestamp defaults, and indexes. Ensure purchase history remains meaningful if a vehicle's current make, model, or price is updated later. Preserve historical label and price snapshots.
+
+If these tables or constraints are missing, create a new forward-only migration using the next correct migration number. Do not modify already-applied migrations to change their historical meaning. Do not duplicate existing schema objects or create redundant indexes.
+
+Use the project's existing migration runner and conventions. Add appropriate migration tests if the current setup supports them. Verify migrations apply once and are idempotent.
+
+All integration tests must use the isolated `TEST_DATABASE_URL` pointed at the dedicated `_test` database. Retain the existing guard that prevents integration tests from silently falling back to the development database. Never drop, recreate, or clear the development database. Do not use `docker compose down -v`.
+
+## 4. Backend cart API
+
+Follow the existing Express, TypeScript, validation, authentication, response, and error-handling patterns. Inspect current routes before implementing anything, and reuse equivalent existing functionality instead of introducing duplicate endpoints.
+
+Implement the following API operations, adjusting their exact request and response shape to the existing project's established conventions.
+
+**`GET /api/cart` — Read the current user's cart**
+
+Return the authenticated user's cart and its items. Include each vehicle's ID, current server-side label, current price, current stock, and a clear indication of whether it can currently be purchased. Return an accurate item count and a server-derived subtotal where appropriate.
+
+The response should allow a future frontend to display unavailable items instead of hiding them. Do not expose other users' carts or create a cart row simply because an empty cart was requested.
+
+**`POST /api/cart/items` — Add a vehicle**
+
+Validate the supplied vehicle ID and require authentication. Verify that the vehicle exists, is active, and has positive stock. Create the authenticated user's cart if necessary and add one item.
+
+Repeated requests for the same vehicle must not create duplicates. Invalid IDs, nonexistent vehicles, deleted vehicles, and zero-stock vehicles must return consistent errors without corrupting the cart.
+
+**`DELETE /api/cart/items/:vehicleId` — Remove one item**
+
+Remove only the specified item from the authenticated user's cart. Validate the vehicle ID, handle missing carts and items consistently, and ensure no inventory is modified.
+
+**`DELETE /api/cart` — Clear the cart**
+
+Remove all items belonging to the authenticated user's cart but preserve the cart record. Clearing an empty or nonexistent cart must be safe and consistent. Do not change inventory.
+
+**`POST /api/cart/checkout` — Purchase the cart contents**
+
+Require authentication and a valid idempotency request ID. Check out the authenticated user's current cart using one PostgreSQL transaction.
+
+Return a clear result with the purchase ID, source, purchased item snapshots, and server-calculated total. Do not accept a client-provided total, price, quantity, stock count, or purchase outcome.
+
+Document the precise request and response contracts and the error cases. Reuse existing response conventions rather than adding unnecessary wrappers or extra endpoints.
+
+## 5. Direct one-unit purchase API
+
+Implement or complete the existing required endpoint:
+
+`POST /api/vehicles/:id/purchase`
+
+It must require an authenticated user, validate the vehicle ID and idempotency request ID, and purchase exactly one unit immediately.
+
+Reject nonexistent, soft-deleted, and out-of-stock vehicles. A successful purchase must atomically:
+
+1. Validate and lock or conditionally update the vehicle's inventory.
+2. Decrement quantity by exactly one.
+3. Create a purchase header with `source = 'direct'`.
+4. Create one purchase item containing the current vehicle label and price snapshots.
+5. Record the server-calculated total.
+6. Commit every change together.
+
+If any step fails, roll back every change. There must be no stock decrement without a purchase record and no purchase record without its corresponding stock decrement.
+
+Use the existing route/controller/service/repository architecture. Keep the implementation as small as practical while maintaining transactional correctness.
+
+## 6. Checkout transaction and stock integrity
+
+Cart checkout must be all-or-nothing.
+
+Inside one transaction, read the authenticated user's cart, validate its contents against current inventory, and lock the relevant vehicle rows in a consistent order to reduce deadlock risk. Re-read the current stock and prices rather than trusting earlier cart responses.
+
+Reject an empty cart. Reject checkout if any item is unavailable, soft-deleted, or has insufficient stock. If any one item fails validation, no other vehicle's stock may be decremented, no partial purchase history may be created, and the cart must remain intact. Return a useful conflict or validation response so a future frontend can explain which item needs attention.
+
+For a valid cart, create exactly one `purchases` header with `source = 'cart'`; insert one immutable `purchase_items` snapshot per vehicle; calculate the total using correct PostgreSQL numeric handling; decrement each item's stock by one; and clear the purchased cart items. Commit these changes together.
+
+Use PostgreSQL transactions, row locking, conditional updates, database constraints, and affected-row checks as appropriate. Do not rely solely on a prior application-level stock read. Handle concurrent requests so inventory cannot become negative or be oversold.
+
+Do not use JavaScript floating-point arithmetic for currency totals. Follow the existing project's type conventions for PostgreSQL `numeric` values and preserve precision.
+
+## 7. Idempotency and request retries
+
+Both direct purchase and cart checkout must support safe retries when a client receives a timeout or uncertain network response.
+
+Inspect the existing idempotency conventions and database design. The `purchases` table uses a request ID that is unique per user. Reuse existing patterns where appropriate and enforce uniqueness in PostgreSQL as well as handling retries in application logic.
+
+An exact retry of an already successful purchase must return the original purchase result without decrementing stock again or creating duplicate purchase headers or items.
+
+Reusing the same request ID for a different operation source or different set of vehicles must return a conflict, not an unrelated existing purchase.
+
+For checkout, validate the cart snapshot on the first request. On retry after a successful checkout, the cart will already be empty, so determine the prior operation by its request ID and compare the requested operation with the recorded purchase. Do not incorrectly reject a genuine retry merely because checkout already cleared the cart.
+
+Handle concurrent requests with the same request ID without producing duplicate purchases. Test both sequential retries and simultaneous duplicate requests against real PostgreSQL.
+
+If the existing schema or design is insufficient for reliable retry validation, identify the problem and introduce the smallest justified forward-only migration and implementation. Document the resulting behavior.
+
+## 8. Mandatory Red-Green-Refactor development sequence
+
+Work in focused, independent TDD cycles. Do not make a single large commit containing the whole cart and purchase feature.
+
+Use this dependency order unless the actual codebase requires a documented adjustment.
+
+**Cycle A: Cart schema and isolation.** Test the migration constraints and that one user can have at most one cart. Verify authenticated cart access cannot cross user boundaries. Add the failing test and RED commit before the minimal schema/implementation changes and GREEN commit.
+
+**Cycle B: Read and add cart items.** Test an empty cart, a cart with items, the current item details, adding a valid vehicle, invalid IDs, nonexistent vehicles, deleted vehicles, and zero-stock vehicles. Test duplicate additions separately and ensure no stock changes occur.
+
+**Cycle C: Remove and clear cart.** Test removing an existing item, removing an absent item, removing another user's item, clearing a populated cart, and clearing an empty cart. Verify stock never changes and the reusable cart row is preserved.
+
+**Cycle D: Direct purchase.** Test unauthenticated access, validation errors, nonexistent/deleted vehicles, zero stock, successful stock decrement, created purchase and purchase-item records, accurate server-side totals, and immutable snapshots.
+
+**Cycle E: Basic cart checkout.** Test empty-cart rejection, successful checkout of one item, successful checkout of multiple distinct vehicles, exact stock changes, purchase header/item count, total calculation, and cart emptying.
+
+**Cycle F: All-or-nothing transaction behavior.** Test when a later item is unavailable or out of stock, and force a genuine failure during a multi-item checkout after earlier transaction work has started. Confirm the transaction rolls back all stock changes, purchase records, and cart mutations.
+
+**Cycle G: Idempotency.** Test the same direct request twice, the same checkout request twice after the cart has been cleared, request-ID conflicts with a different source or item set, and safe handling of simultaneous duplicate requests.
+
+**Cycle H: Concurrency.** Test two different users trying to buy the last unit and two competing checkouts for limited stock. Verify only valid purchases succeed, stock never becomes negative, and purchase history matches actual stock changes.
+
+Add further cycles for any meaningful missing behavior discovered during implementation. For every genuine behavior, demonstrate the expected failure before changing implementation, then demonstrate the passing test after the fix. Keep assertions meaningful and avoid brittle tests that rely on timing alone.
+
+Commit each focused RED test separately from its GREEN implementation. Refactor only when genuinely needed. Run the relevant tests after each cycle before starting the next one.
+
+## 9. Integration testing, test isolation, and regression coverage
+
+Use the existing backend test framework and PostgreSQL integration-test helpers. Transactional, constraint, idempotency, and concurrency behavior must be tested against a real PostgreSQL test database; mocks alone are not sufficient evidence for these properties.
+
+Maintain the dedicated test database guard. Never let integration tests fall back to the development database. Use isolated fixtures or transactions according to the existing test patterns, clean up all test data, and verify that fixtures leave no unexpected records behind.
+
+Preserve existing authentication and authorization, vehicle listing/search/pagination, admin vehicle creation/editing/deletion, stock validation, restock receipts, restock idempotency, and all current regression tests.
+
+Do not weaken assertions, skip tests to make the suite green, delete tests that reveal defects, or introduce broad test skips. If a test cannot run, state why and what remains unverified.
+
+## 10. Backend documentation and prompt history
+
+Add this exact prompt verbatim to the existing `PROMPTS.md` under a clear heading, preserving the original wording and order. Continue recording each new project prompt exactly rather than substituting a summary. Do not claim that `PROMPTS.md` satisfies the separate requirement to provide full original AI conversations or public links; I will provide those at the end.
+
+Update `README.md` and any relevant API documentation with the actual backend cart and purchase endpoints, request/response examples, authentication requirements, error cases, idempotency semantics, transaction guarantees, and migration commands. Do not add frontend implementation details or claim that the UI exists. If useful, document the API contracts in a backend API document so the future frontend can consume them consistently.
+
+Keep the existing root workspace scripts working. Do not add frontend implementation or frontend test work as part of this task.
+
+## 11. Commits and AI co-authorship
+
+Follow the assignment's TDD and commit-history requirements. Use descriptive conventional commit messages with a clear RED/GREEN distinction and separate justified REFACTOR commits. Include the required AI co-author trailer on AI-assisted commits, using the established `Co-authored-by: Codex <noreply@openai.com>` format where appropriate, with a blank line before the trailer. Do not invent co-author identities or add unrelated contributors.
+
+Keep the commit history intact. Do not reset, rebase, squash, amend, force-push, or push anything to GitHub. Do not commit unrelated files or any secrets. Preserve the existing folder structure, frontend scaffold, environment configuration, and user data.
+
+## 12. Final verification and completion report
+
+After completing the backend implementation, run the focused tests for every cycle and then the complete backend test suite against the dedicated `_test` database. Run the backend build, the root build if supported without changing frontend code, and `git diff --check`. Verify all new migrations apply and remain idempotent.
+
+Use real PostgreSQL integration tests to confirm transaction rollback, accurate inventory changes, purchase history, exact retries, request-ID conflicts, and concurrent purchase safety. Verify test fixtures have been removed and that existing development data was not wiped or recreated.
+
+Do not modify any files inside `frontend/`. At the end, verify and report that the frontend directory is untouched by this task.
+
+Finish with the exact RED/GREEN/REFACTOR commits, the test or behavior covered by each commit, the commands executed and their actual results, migration status, any remaining issues, and the final `git status --short --branch`. Clearly state if anything was skipped and why. Do not push anything to GitHub.
+
+Do not stop after providing an audit or implementation plan. Complete the backend cart and purchase functionality and its verification while preserving the existing repository history.
