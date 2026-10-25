@@ -90,4 +90,85 @@ describe('Migration Live Integration Tests', () => {
       client.release();
     }
   });
+
+  it('creates constrained vehicle_images table once with required uniqueness and ordering', async () => {
+    await runMigrations(pool, path.resolve(process.cwd(), 'migrations'));
+    expect(await runMigrations(pool, path.resolve(process.cwd(), 'migrations'))).toEqual([]);
+
+    const tables = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vehicle_images'");
+    expect(tables.rows.map((row) => row.table_name)).toEqual(['vehicle_images']);
+
+    const constraints = await pool.query("SELECT conname FROM pg_constraint WHERE conrelid = 'vehicle_images'::regclass");
+    expect(constraints.rows.map((row) => row.conname)).toEqual(expect.arrayContaining([
+      'vehicle_images_pkey',
+      'vehicle_images_vehicle_id_display_order_key',
+    ]));
+
+    const indexes = await pool.query("SELECT indexname FROM pg_indexes WHERE tablename = 'vehicle_images'");
+    expect(indexes.rows.map((row) => row.indexname)).toContain('idx_vehicle_images_vehicle_id');
+
+    // Test constraints in a rolled-back transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const categoryId = (await client.query('INSERT INTO vehicle_categories (name) VALUES ($1) RETURNING id', [`schema-img-${crypto.randomUUID()}`])).rows[0].id;
+      const vehicleId = (await client.query('INSERT INTO vehicles (make, model, category_id, price) VALUES ($1, $2, $3, 100) RETURNING id', [`make-${crypto.randomUUID()}`, 'model', categoryId])).rows[0].id;
+
+      // Valid insert
+      const img = await client.query(
+        'INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order) VALUES ($1, $2, $3, $4) RETURNING id, display_order',
+        [vehicleId, 'https://example.com/car.png', 'Test car alt text', 0]
+      );
+      expect(img.rows[0].display_order).toBe(0);
+
+      const rejected = async (sql: string, values: unknown[], code: string) => {
+        await client.query('SAVEPOINT invalid_img');
+        await expect(client.query(sql, values)).rejects.toMatchObject({ code });
+        await client.query('ROLLBACK TO SAVEPOINT invalid_img');
+        await client.query('RELEASE SAVEPOINT invalid_img');
+      };
+
+      // Duplicate (vehicle_id, display_order) -> 23505
+      await rejected(
+        'INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order) VALUES ($1, $2, $3, $4)',
+        [vehicleId, 'https://example.com/car2.png', 'Another car', 0],
+        '23505'
+      );
+
+      // Negative display_order -> 23514
+      await rejected(
+        'INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order) VALUES ($1, $2, $3, $4)',
+        [vehicleId, 'https://example.com/car2.png', 'Another car', -1],
+        '23514'
+      );
+
+      // Blank url -> 23514
+      await rejected(
+        'INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order) VALUES ($1, $2, $3, $4)',
+        [vehicleId, '   ', 'Another car', 1],
+        '23514'
+      );
+
+      // Blank alt_text -> 23514
+      await rejected(
+        'INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order) VALUES ($1, $2, $3, $4)',
+        [vehicleId, 'https://example.com/car.png', '   ', 1],
+        '23514'
+      );
+
+      // Invalid vehicle_id -> 23503
+      await rejected(
+        'INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order) VALUES ($1, $2, $3, $4)',
+        [crypto.randomUUID(), 'https://example.com/car.png', 'Alt text', 1],
+        '23503'
+      );
+
+      // Restrict delete on vehicles when referenced by vehicle_images -> 23503
+      await rejected('DELETE FROM vehicles WHERE id = $1', [vehicleId], '23503');
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
 });
+
