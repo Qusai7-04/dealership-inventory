@@ -8,15 +8,19 @@ import type { CartResponse } from '../types/api';
 
 export function CartPage() {
   const { api } = useAuth(); const [cart, setCart] = useState<CartResponse | null>(null); const [error, setError] = useState<string | null>(null); const [success, setSuccess] = useState<string | null>(null); const [pending, setPending] = useState(false); const attempt = useRef<ReturnType<typeof createCheckoutAttempt> | null>(null);
-  const load = useCallback(() => { setError(null); api.get<CartResponse>('/api/cart').then(setCart).catch((reason) => setError(reason.message)); }, [api]);
-  useEffect(load, [load]);
+  const load = useCallback(async (preserveError = false) => {
+    if (!preserveError) setError(null);
+    try { setCart(await api.get<CartResponse>('/api/cart')); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not load the cart.'); }
+  }, [api]);
+  useEffect(() => { void load(); }, [load]);
   async function remove(id: string) { setCart(await api.delete<CartResponse>(`/api/cart/items/${id}`)); attempt.current = null; }
   async function clear() { setCart(await api.delete<CartResponse>('/api/cart')); attempt.current = null; }
   async function checkout() {
     if (!cart?.items.length) return; setPending(true); setError(null); setSuccess(null);
     attempt.current ??= createCheckoutAttempt(cart.items.map(({ vehicleId, price }) => ({ vehicleId, price })));
     try { const result = await attempt.current.submit<{ purchase: { id: string } }>(api); setSuccess(`Purchase ${result.purchase.id} recorded successfully.`); attempt.current = null; await load(); }
-    catch (reason) { if (reason instanceof ApiError && reason.status === 409) { setError(`${reason.message}. The cart has been refreshed; review it before retrying.`); attempt.current = null; await load(); } else { setError(reason instanceof Error ? `${reason.message}. Retry will use the same request ID.` : 'Checkout failed.'); } }
+    catch (reason) { if (reason instanceof ApiError && reason.status === 409) { setError(`${reason.message}. The cart has been refreshed; review it before retrying.`); attempt.current = null; await load(true); } else { setError(reason instanceof Error ? `${reason.message}. Retry will use the same request ID.` : 'Checkout failed.'); } }
     finally { setPending(false); }
   }
   return <main className="page"><header className="page-heading"><p className="eyebrow">Tear sheet</p><h1>Your cart</h1><p>The server remains the source of truth for stock, prices, and the subtotal.</p></header><PageState loading={!cart && !error} error={!cart ? error : null} onRetry={load} />
