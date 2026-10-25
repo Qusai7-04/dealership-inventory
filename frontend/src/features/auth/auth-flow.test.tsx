@@ -5,6 +5,19 @@ import { describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 
 describe('authentication flow', () => {
+  it('validates registration before making a request', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
+    await user.type(screen.getByLabelText(/full name/i), 'Asha Rao');
+    await user.type(screen.getByLabelText(/email/i), 'asha@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'short');
+    await user.click(screen.getByRole('button', { name: /create account/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/at least 8 characters/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockRestore();
+  });
+
   it('redirects protected catalogue routes to sign in', async () => {
     render(<MemoryRouter initialEntries={['/vehicles']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument();
