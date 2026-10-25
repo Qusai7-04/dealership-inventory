@@ -1,7 +1,11 @@
 import express from 'express';
 import { checkDatabaseConnection } from './db.js';
+import authRouter from './auth-routes.js';
+import { errorHandler } from './errors.js';
 
 const app = express();
+
+app.use(express.json());
 
 app.get('/health', (_request, response) => {
   response.json({ status: 'ok' });
@@ -15,5 +19,8 @@ app.get('/health/db', async (_request, response) => {
     response.status(503).json({ status: 'degraded', database: 'disconnected' });
   }
 });
+
+app.use('/api/auth', authRouter);
+app.use(errorHandler);
 
 export default app;

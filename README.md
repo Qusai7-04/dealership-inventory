@@ -1,6 +1,6 @@
 # Car Dealership Inventory System
 
-Planning and database design for the Incubyte full-stack kata. The intended product is a shared, login-protected vehicle catalogue: users browse, search, save, and buy stock; admins maintain listings and inventory. A minimal TypeScript/Express backend now exposes `GET /health`; the application schema and product endpoints are not implemented yet.
+The Incubyte full-stack kata for a shared, login-protected vehicle catalogue. The TypeScript/Express backend includes PostgreSQL health checks, migrations, registration, login, bearer-token authentication, and reusable role authorization. Inventory endpoints and the frontend are not implemented yet.
 
 ## Product and assignment scope
 
@@ -221,6 +221,41 @@ Run `npm install`, then `npm run dev` for development or `npm run build` and `np
 - `GET /health/db` checks live database connectivity via `SELECT 1;` and returns `{"status":"ok","database":"connected"}` or `503` if unreachable.
 - Run `npm test` to execute the full unit and live integration test suite.
 - Run `npm run migrate` to apply pending PostgreSQL schema migrations.
+
+## Authentication API
+
+Set `JWT_SECRET` to a random value of at least 32 characters and optionally set `JWT_EXPIRES_IN_SECONDS` (default `3600`). The server refuses to start without a valid secret. Integration tests prefer `TEST_DATABASE_URL`; configure it as a separate PostgreSQL database when available.
+
+Register a normal user. Extra privilege fields are ignored and the server always assigns `role: "user"`:
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{"fullName":"Ada Lovelace","email":"ada@example.com","password":"StrongPass123!"}
+```
+
+```json
+{"user":{"id":"<uuid>","fullName":"Ada Lovelace","email":"ada@example.com","role":"user","isVerified":false,"isActive":true}}
+```
+
+Log in with the same email and password:
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{"email":"ada@example.com","password":"StrongPass123!"}
+```
+
+The response contains `token` and the same safe user fields. Send the token on protected requests as `Authorization: Bearer <token>`. For example, `GET /api/auth/me` returns the current active user. Authentication reloads the user and role from PostgreSQL, so deactivation and role changes take effect without waiting for an old token to expire. Admin routes can reuse `authenticate` followed by `requireRole('admin')`.
+
+Run all tests with `npm test`. To require live integration coverage explicitly in PowerShell:
+
+```powershell
+$env:TEST_DATABASE_URL = 'postgresql://dealership_app:<password>@localhost:5433/dealership_inventory_test'
+npm test
+```
 
 ## My AI Usage
 

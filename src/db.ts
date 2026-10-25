@@ -14,9 +14,13 @@ if (typeof process.loadEnvFile === 'function') {
 let pool: pg.Pool | null = null;
 
 export function getPoolConfig(): PoolConfig {
-  if (process.env.DATABASE_URL) {
+  const connectionString = process.env.NODE_ENV === 'test'
+    ? process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL
+    : process.env.DATABASE_URL;
+
+  if (connectionString) {
     return {
-      connectionString: process.env.DATABASE_URL,
+      connectionString,
     };
   }
 

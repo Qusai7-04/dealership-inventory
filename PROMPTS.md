@@ -559,3 +559,7 @@ Task: Add Docker Compose and verify the real database workflow.
 5. Run migration runner against containerized database. Verify tables exist and idempotent second run.
 6. Run unit and integration tests, build, and diff check.
 7. Update README with Docker Compose setup and safe cleanup instructions.
+
+### Session: Authentication and authorization implementation (2026-10-25)
+
+Implemented PostgreSQL-backed registration and login, bcrypt password hashing, signed and expiring JWT bearer tokens, active-user authentication, current database-backed role authorization, request validation, safe error responses, and startup configuration validation. Added focused unit and live PostgreSQL integration coverage for registration, login, duplicate normalized emails, privilege-field injection, invalid credentials, token failures, deactivation, and role changes. Updated environment and API documentation. The completed checks were 34 passing tests across 7 files, a successful TypeScript build, `git diff --check`, and an npm audit reporting zero vulnerabilities.
