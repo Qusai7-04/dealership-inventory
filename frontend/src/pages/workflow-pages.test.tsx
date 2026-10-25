@@ -6,12 +6,14 @@ import { ApiError } from '../api/client';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  user: { id: 'user-1', email: 'shopper@creaseline.in', fullName: 'Collector One', role: 'user' },
 }));
-vi.mock('../features/auth/AuthProvider', () => ({ useAuth: () => ({ api: mocks.api }) }));
+vi.mock('../features/auth/AuthProvider', () => ({ useAuth: () => ({ api: mocks.api, user: mocks.user }) }));
 
 import { CataloguePage } from './CataloguePage';
 import { CartPage } from './CartPage';
 import { NotificationsPage } from './NotificationsPage';
+import { HomePage } from './HomePage';
 
 describe('connected workflow pages', () => {
   beforeEach(() => { for (const method of Object.values(mocks.api)) method.mockReset(); });
@@ -53,5 +55,37 @@ describe('connected workflow pages', () => {
     await user.click(await screen.findByRole('button', { name: 'Mark read' }));
     await waitFor(() => expect(screen.getByText('0 unread')).toBeInTheDocument());
     expect(mocks.api.patch).toHaveBeenCalledWith('/api/notifications/n1/read', {});
+  });
+
+  it('renders bay-window interactive showcase rail on home page for featured vehicles', async () => {
+    const featuredVehicles = [
+      {
+        id: 'v101',
+        make: 'Porsche',
+        model: '911 Carrera',
+        category: { id: 1, name: 'Sports Coupe' },
+        price: '18500000.00',
+        quantity: 2,
+        lowStockThreshold: 1,
+        images: [{ id: 'img-1', url: '/images/porsche.webp', altText: 'Porsche 911', displayOrder: 0 }],
+        createdAt: '2026-01-01',
+        updatedAt: '2026-01-01',
+      },
+    ];
+    mocks.api.get.mockImplementation((path: string) => {
+      if (path.includes('/api/vehicles')) {
+        return Promise.resolve({ vehicles: featuredVehicles, pagination: { total: 35, page: 1, limit: 6, totalPages: 6 } });
+      }
+      return Promise.resolve({ categories: [{ id: 1, name: 'Sports Coupe' }] });
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/bay-window exposé/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /inspect porsche 911 carrera/i })).toBeInTheDocument();
   });
 });
