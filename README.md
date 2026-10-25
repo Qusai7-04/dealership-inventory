@@ -398,6 +398,155 @@ The catalogue data is sourced from real-world and curated industry datasets, whi
 
 The verified development database contained 35 active vehicles, 27 opening receipts, and 16 valid local WebP/image rows, with no stock reconciliation mismatch or broken file reference. Do not run `npm run db:seed:images` during ordinary startup: it can consume provider credits. `npm run db:seed:vehicles` is idempotent and never resets an existing active stock line, but should only be used for an unseeded development database.
 
+## Production Deployment Guide (Render)
+
+Creaseline is designed to deploy cleanly using a conventional three-tier architecture:
+1. **Frontend:** Static Site (React/Vite SPA) hosted with rewrite routing.
+2. **Backend:** Node.js Web Service (Express API) serving `/api`, `/health`, and cached vehicle images.
+3. **Database:** Managed PostgreSQL instance (PostgreSQL 15+).
+
+The repository includes a ready-to-use Render Blueprint file ([render.yaml](render.yaml)) that automatically configures these services and their interconnections.
+
+### 1. Prerequisites and Infrastructure Requirements
+
+- **Hosting Platform:** Render (or any comparable cloud host supporting Node.js, static sites, and PostgreSQL).
+- **Node.js Runtime:** Node.js 20+ LTS.
+- **Database:** PostgreSQL 15, 16, or 17 with SSL/TLS support.
+- **Build Tooling:** `npm` v10+ with workspace support.
+- **Repository:** Clean Git checkout of `main` branch.
+
+### 2. Environment Variables Reference
+
+| Variable | Scope | Required / Optional | Purpose & Notes |
+|---|---|---|---|
+| `NODE_ENV` | Backend | Required | Set to `production`. Enables secure error handling (no stack traces or internal SQL leaked to clients). |
+| `PORT` | Backend | Optional | Port the Express server listens on (defaults to `3000`, set automatically by Render). |
+| `DATABASE_URL` | Backend | Required | PostgreSQL connection string (`postgresql://user:pass@host:5432/dbname?sslmode=require`). |
+| `JWT_SECRET` | Backend | Required | Cryptographically random secret string used for signing and verifying authentication tokens. Minimum 32 characters. Never commit or expose. |
+| `JWT_EXPIRES_IN_SECONDS` | Backend | Optional | Token lifetime in seconds (defaults to `3600`, i.e., 1 hour). |
+| `CORS_ORIGIN` | Backend | Required in Prod | Allowed origin for browser API requests (e.g., `https://creaseline.onrender.com`). Accepts comma-separated list or `*`. |
+| `CAR_IMAGE_API_KEY` | Backend | Optional (Prod) | API key for carimage.dev. **Not needed** in production when using pre-cached images. Never expose to client. |
+| `VITE_API_BASE_URL` | Frontend | Required in Prod | Public HTTPS URL of the deployed backend API (e.g., `https://creaseline-api.onrender.com`). Baked into the static bundle during build time. |
+
+> **Security Rule:** Never prefix server secrets (`DATABASE_URL`, `JWT_SECRET`, `CAR_IMAGE_API_KEY`) with `VITE_`. Vite exposes all `VITE_*` variables to the public client browser bundle.
+
+### 3. Deployment Steps via Render Blueprint (`render.yaml`)
+
+1. **Connect Repository:**
+   - Log in to your [Render Dashboard](https://dashboard.render.com).
+   - Click **New +** and select **Blueprint**.
+   - Connect your GitHub repository (`dealership-inventory`).
+   - Render detects `render.yaml` and parses the three resources: `creaseline-api`, `creaseline`, and `creaseline-db`.
+
+2. **Configure Variables in Render:**
+   - Render automatically connects `DATABASE_URL` from `creaseline-db` to `creaseline-api`.
+   - Render automatically generates a cryptographically secure `JWT_SECRET`.
+   - Update `CORS_ORIGIN` on `creaseline-api` to match your static site URL (`https://creaseline.onrender.com`).
+   - Update `VITE_API_BASE_URL` on `creaseline` to match your backend service URL (`https://creaseline-api.onrender.com`).
+
+3. **Deploy:**
+   - Click **Apply Blueprint**. Render provisions the PostgreSQL database, builds the Node.js API, and compiles the static frontend.
+
+### 4. Database Setup & Production Migration
+
+Migrations are idempotent and tracked in the `schema_migrations` table. They never drop tables, truncate data, or overwrite existing inventory.
+
+- **To run migrations against production:**
+  Execute from Render Shell (or locally with the production `DATABASE_URL` set):
+  ```bash
+  DATABASE_URL="<production-connection-string>" npm run migrate
+  ```
+  Or within the `creaseline-api` service shell on Render:
+  ```bash
+  npm run migrate
+  ```
+- **Safety Guarantee:** If `DATABASE_URL` is omitted, the migration runner aborts with an error rather than falling back to an unsafe default.
+
+### 5. Seeding Policy (Development vs Production)
+
+- **Schema Migration (`npm run migrate`):** Safe to run on production at any time. Creates required tables, types, and indexes without modifying data.
+- **Catalogue Seeding (`npm run db:seed:vehicles`):** Safe **only** for initial catalogue bootstrap on a fresh, empty database. It inserts the 35 curated vehicle lines and their 27 opening stock receipts. It will **not** reset stock if vehicles already exist, but should not be run as an automated deployment step.
+- **Image Seeding (`npm run db:seed:images`):** **DO NOT run in production.** Image seeding calls the third-party carimage.dev API and consumes provider credits. All 16 approved vehicle images are already locally cached in `backend/public/images/vehicles/` and tracked in Git; the backend serves them statically out of the box in production.
+
+### 6. Safe Initial Administrator Setup
+
+Registration via the UI or API (`POST /api/auth/register`) strictly assigns the `user` role to prevent unauthorized privilege escalation. To promote your initial administrative user:
+
+1. Register normally via the deployed frontend (`/register`).
+2. Connect to the production database via `psql` or the Render Dashboard database query console.
+3. Promote the user by email:
+   ```sql
+   UPDATE users SET role = 'admin' WHERE email = 'your-admin-email@example.com';
+   ```
+4. Verify the role:
+   ```sql
+   SELECT id, email, full_name, role, is_active FROM users WHERE email = 'your-admin-email@example.com';
+   ```
+
+### 7. Health Checks and Verification
+
+The backend exposes two dedicated, unauthenticated health check endpoints:
+- `GET /health` — Quick process liveness check. Returns `{"status":"ok","uptime":...,"timestamp":...}` (HTTP 200).
+- `GET /health/db` — Full readiness check verifying PostgreSQL pool connectivity. Returns `{"status":"ok","db":{"status":"healthy","latencyMs":...}}` (HTTP 200) or HTTP 503 if the database is unreachable.
+
+Render uses `/health/db` as the service health check path.
+
+### 8. Post-Deployment Smoke Test Checklist
+
+After deployment, perform these manual smoke checks on the live site:
+
+- [ ] **Health Check:** Visit `https://<api-domain>/health/db` and confirm `status: "ok"`.
+- [ ] **Static Assets & Routing:** Visit `https://<frontend-domain>/` and verify CSS and fonts load.
+- [ ] **Direct URL Refresh:** Navigate to `https://<frontend-domain>/vehicles` and press browser refresh (F5). Confirm it reloads without 404 (handled by `_redirects`).
+- [ ] **Registration & Login:** Register a new user account, sign out, and sign back in.
+- [ ] **Catalogue Browsing:** View the vehicle list. Confirm vehicle cards display make, model, price, category badges, and images.
+- [ ] **Fallback Images:** Confirm vehicles without custom renders display the neutral SVG fallback with correct alt text.
+- [ ] **Search & Filters:** Filter by category (e.g. SUV) and search by make/model. Verify page reset and results.
+- [ ] **Detail Page:** Click a vehicle to open `/vehicles/:id`. Verify details and specifications.
+- [ ] **Zero Stock Button:** Check an out-of-stock vehicle listing (e.g., zero quantity). Confirm the "Purchase" button is disabled and clearly labeled.
+- [ ] **Direct Purchase:** Purchase an in-stock vehicle. Verify stock decrements by 1 and a purchase record appears under `/purchases`.
+- [ ] **Cart & Checkout:** Add an in-stock vehicle to cart, view `/cart`, and complete checkout.
+- [ ] **Favourites & Alerts:** Save a vehicle to favourites, toggle restock alerts, and verify `/favourites`.
+- [ ] **Admin Operations (with admin account):** Log in with an admin account and verify access to `/admin`. Test editing listing details and recording a restock receipt. Confirm non-admin users receive 403 Forbidden.
+
+### 9. Database Backup, Rollback, and Maintenance
+
+- **Backups:** For production databases, configure scheduled daily backups. Using Render Managed PostgreSQL (Starter tier or above), automated daily backups with 7-day retention are included. For manual backups:
+  ```bash
+  pg_dump -Fc --no-acl --no-owner "$DATABASE_URL" > creaseline_backup_$(date +%Y%m%d).dump
+  ```
+- **Rollback Procedure:**
+  - Application code rollbacks can be performed instantly via Render Dashboard ("Rollback to this deploy").
+  - Database schema migrations are strictly additive. If a rollback requires reverting a migration, write a deliberate reverse migration script rather than modifying existing migration files.
+
+### 10. Hosting Tier Considerations & Cost Optimization
+
+| Service | Free Tier Limitations | Recommended Production Tier |
+|---|---|---|
+| **API Web Service** | Spins down after 15 minutes of inactivity; 50-second cold start latency on first request. Not suitable for production APIs. | **Starter Plan** ($7/month): Always-on, 512 MB RAM, 0.5 CPU, no cold starts. |
+| **PostgreSQL DB** | **Expires and is deleted after 30 days.** No automated backups, no high availability. | **Starter DB** ($7/month): Persistent storage, 1 GB RAM, automated daily backups with 7-day retention. |
+| **Static Frontend** | Fully free on Render, with global CDN, custom domains, and automatic SSL. | **Free Tier** ($0/month): Fast, reliable global static hosting. |
+
+> **Production Recommendation:** A reliable 24/7 production deployment requires at least the Starter Web Service and Starter PostgreSQL plan ($14/month total). Free tier is suitable only for short-lived personal testing or demo review.
+
+## Licensing, Legal, and Asset Caveats
+
+### 1. Vehicle Dataset Licensing (Commercial Release Blocker)
+
+- **Source Dataset:** `Car Data India` from Kaggle (`namanarora21/car-data-india-market-usage-and-body-type-insights`).
+- **Legal Status:** The dataset is synthetic market data. Kaggle dataset terms and open database redistribution rights for this specific compilation have not been commercially certified.
+- **Release Status: UNRESOLVED RELEASE BLOCKER FOR COMMERCIAL USE.**
+  - **Permitted Use:** Private testing, educational kata demonstration, evaluation, and staging deployments.
+  - **Commercial Use:** **BLOCKED.** Before launching Creaseline as a commercial offering or public commercial service, replace this dataset with a commercially licensed vehicle inventory feed or authorized dealer management system (DMS) export.
+- **Replacement Strategy:** To replace the dataset, update `backend/src/data/vehicles.seed.json` with authorized dealer inventory conforming to the `VehicleSeedItem` TypeScript interface, then apply with `npm run db:seed:vehicles` on a fresh database.
+
+### 2. Vehicle Imagery Licensing & Disclaimer
+
+- **Image Provider:** Studio renders from [carimage.dev](https://carimage.dev).
+- **Licence Terms:** carimage.dev's Free Evaluation tier allows non-commercial and evaluation usage only. Commercial usage requires a paid commercial license tier.
+- **Accuracy Disclaimer:** The images served by Creaseline are synthetic studio renders and illustrations. They **do not represent actual, photographed, or manufacturer-certified vehicles** in inventory.
+- **User Interface Notice:** The frontend renders these assets as illustrative renders and provides neutral fallbacks for listings without renders. They are never described to consumers as certified OEM photographs.
+
 ## Local Creaseline workflow (PowerShell)
 
 ```powershell
