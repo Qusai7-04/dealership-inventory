@@ -93,31 +93,31 @@ export async function seedVehicles(
     const rawData = await fs.readFile(resolvedPath, 'utf8');
     const items: SeedVehicleItem[] = JSON.parse(rawData);
 
-    // 2. Ensure canonical categories exist
-    for (const cat of CANONICAL_CATEGORIES) {
-      await client.query(
-        `INSERT INTO vehicle_categories (name)
-         VALUES ($1)
-         ON CONFLICT (lower(name)) DO NOTHING`,
-        [cat]
-      );
-    }
-
-    // Load category lookup map
-    const catRows = await client.query<{ id: number; name: string }>(
-      'SELECT id, name FROM vehicle_categories'
-    );
-    const categoryMap = new Map<string, number>();
-    for (const row of catRows.rows) {
-      categoryMap.set(row.name.toLowerCase(), row.id);
-    }
-
-    // 3. Ensure system actor exists for opening receipts
-    const actorId = await ensureSystemUser(client);
-
-    // 4. Seed vehicles inside a transaction
     await client.query('BEGIN');
     try {
+      // 2. Ensure canonical categories exist
+      for (const cat of CANONICAL_CATEGORIES) {
+        await client.query(
+          `INSERT INTO vehicle_categories (name)
+           VALUES ($1)
+           ON CONFLICT (lower(name)) DO NOTHING`,
+          [cat]
+        );
+      }
+
+      // Load category lookup map
+      const catRows = await client.query<{ id: number; name: string }>(
+        'SELECT id, name FROM vehicle_categories'
+      );
+      const categoryMap = new Map<string, number>();
+      for (const row of catRows.rows) {
+        categoryMap.set(row.name.toLowerCase(), row.id);
+      }
+
+      // 3. Ensure system actor exists for opening receipts
+      const actorId = await ensureSystemUser(client);
+
+      // 4. Seed vehicles inside the same transaction
       let vehiclesInserted = 0;
       let vehiclesSkipped = 0;
       let receiptsCreated = 0;
