@@ -144,4 +144,23 @@ describe('favourites and targeted notifications', () => {
     await request(app).post(`/api/vehicles/${zeroThreshold}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
     expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [zeroThreshold])).rows[0].count).toBe(0);
   });
+
+  it('creates distinct out-of-stock and low-stock alerts for direct and cart sales', async () => {
+    const directId = await vehicle('out-direct', 1, 3);
+    const directKey = crypto.randomUUID();
+    await request(app).post(`/api/vehicles/${directId}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200);
+    await request(app).post(`/api/vehicles/${directId}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200);
+    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 GROUP BY type', [directId])).rows).toEqual([{ type: 'out_of_stock', count: 2 }]);
+
+    const lowId = await vehicle('low-cart', 4, 3);
+    const outId = await vehicle('out-cart', 1, 3);
+    for (const id of [lowId, outId]) await request(app).post('/api/cart/items').set(bearer(0)).send({ vehicleId: id }).expect(200);
+    const checkoutBody = { requestId: crypto.randomUUID(), items: [lowId, outId].map((vehicleId) => ({ vehicleId, price: '10.25' })) };
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send(checkoutBody).expect(200);
+    await request(app).post('/api/cart/checkout').set(bearer(0)).send(checkoutBody).expect(200);
+    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 GROUP BY type', [lowId])).rows).toEqual([{ type: 'low_stock', count: 2 }]);
+    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 GROUP BY type', [outId])).rows).toEqual([{ type: 'out_of_stock', count: 2 }]);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [lowId])).rows[0].quantity).toBe(3);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [outId])).rows[0].quantity).toBe(0);
+  });
 });
