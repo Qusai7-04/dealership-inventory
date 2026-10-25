@@ -47,4 +47,17 @@ describe('Migration Live Integration Tests', () => {
     const names = constraints.rows.map((row) => row.conname);
     expect(names).toEqual(expect.arrayContaining(['carts_user_id_key', 'cart_items_pkey', 'purchases_user_id_request_id_key', 'purchase_items_purchase_id_vehicle_id_key']));
   });
+
+  it('creates constrained favourites and targeted notification tables once', async () => {
+    await runMigrations(pool, path.resolve(process.cwd(), 'migrations'));
+    expect(await runMigrations(pool, path.resolve(process.cwd(), 'migrations'))).toEqual([]);
+    const tables = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])", [['favourites', 'notifications']]);
+    expect(tables.rows.map((row) => row.table_name).sort()).toEqual(['favourites', 'notifications']);
+    const constraints = await pool.query("SELECT conname FROM pg_constraint WHERE conrelid IN ('favourites'::regclass, 'notifications'::regclass)");
+    expect(constraints.rows.map((row) => row.conname)).toEqual(expect.arrayContaining([
+      'favourites_pkey', 'notifications_recipient_id_type_event_key_key', 'notifications_type_check',
+    ]));
+    const indexes = await pool.query("SELECT indexname FROM pg_indexes WHERE tablename = ANY($1::text[])", [['favourites', 'notifications']]);
+    expect(indexes.rows.map((row) => row.indexname)).toEqual(expect.arrayContaining(['idx_favourites_restock_subscribers', 'idx_notifications_inbox']));
+  });
 });
