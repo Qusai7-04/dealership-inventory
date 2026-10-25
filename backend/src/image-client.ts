@@ -101,6 +101,114 @@ export class CarImageClient {
     }
   }
 
+  async resolveCar(make: string, model: string): Promise<{ vehicleId: string; make: string; model: string; year?: number } | null> {
+    const candidateQueries = [
+      `${make} ${model}`,
+      `${make.replace(/Maruti Suzuki/i, 'Suzuki')} ${model}`,
+      `${make.replace(/Maruti Suzuki/i, 'Maruti')} ${model}`,
+      `${make.replace(/Tata Motors/i, 'Tata')} ${model}`,
+    ];
+
+    for (const q of candidateQueries) {
+      try {
+        const res = await fetch(`${this.baseUrl}/images/resolve`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ query: q }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (res.ok) {
+          const json: any = await res.json();
+          const p = json?.data?.params;
+          if (p?.vehicle_id) {
+            return {
+              vehicleId: p.vehicle_id,
+              make: p.make ?? make,
+              model: p.model ?? model,
+              year: p.year,
+            };
+          }
+        }
+      } catch {
+        // Proceed to next candidate
+      }
+    }
+    return null;
+  }
+
+  private async saveAndValidateImage(
+    response: Response,
+    localFilePath: string,
+    publicUrl: string,
+    altText: string,
+    meta?: { make: string; model: string; year?: number; view?: string; resolvedVehicleId?: string }
+  ): Promise<{ url: string; altText: string }> {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length < 12) {
+      throw new Error('Image response payload too small to be a valid image');
+    }
+
+    const preview = buffer.toString('utf8', 0, Math.min(buffer.length, 60)).replace(/\s+/g, ' ');
+    const isHtmlOrJson = preview.startsWith('<') || preview.startsWith('{');
+
+    const isWebP = (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP')
+      || buffer.toString('ascii').toLowerCase().includes('webp')
+      || buffer.toString('ascii').toLowerCase().includes('image');
+    const isPng = (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47)
+      || buffer.toString('ascii').toLowerCase().includes('png');
+    const isJpeg = (buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF);
+
+    if (isHtmlOrJson || (!isWebP && !isPng && !isJpeg)) {
+      throw new Error(`Invalid image binary signature received: ${preview}`);
+    }
+
+    // Atomic write to avoid partial or corrupted files
+    const tempPath = `${localFilePath}.${Date.now()}.${Math.random().toString(36).substring(7)}.tmp`;
+    fs.writeFileSync(tempPath, buffer);
+    fs.renameSync(tempPath, localFilePath);
+
+    // Update manifest.json with diagnostic metadata (never storing secrets or tokens)
+    try {
+      const manifestPath = path.join(this.storageDir, 'manifest.json');
+      let manifest: { version: number; updatedAt: string; images: Record<string, any> } = {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        images: {},
+      };
+      if (fs.existsSync(manifestPath)) {
+        try {
+          manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        } catch {
+          // ignore corrupted manifest
+        }
+      }
+      const filename = path.basename(localFilePath);
+      manifest.updatedAt = new Date().toISOString();
+      manifest.images = manifest.images || {};
+      manifest.images[filename] = {
+        url: publicUrl,
+        make: meta?.make,
+        model: meta?.model,
+        year: meta?.year,
+        view: meta?.view ?? 'front-3-4',
+        resolvedVehicleId: meta?.resolvedVehicleId,
+        source: 'carimage.dev',
+        fileSizeBytes: buffer.length,
+        format: isWebP ? 'webp' : isPng ? 'png' : 'jpeg',
+        createdAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+    } catch {
+      // Manifest update should not break image fetch
+    }
+
+    return { url: publicUrl, altText };
+  }
+
   async fetchAndCacheImage(
     req: VehicleImageRequest
   ): Promise<{ url: string; altText: string } | null> {
@@ -135,8 +243,8 @@ export class CarImageClient {
 
     const targetUrl = `${this.baseUrl}/images/car?${params.toString()}`;
 
-    // 3. Dispatch request with Bearer authorization header
-    const response = await fetch(targetUrl, {
+    // 3. Dispatch direct request with Bearer authorization header
+    let response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -144,6 +252,35 @@ export class CarImageClient {
       },
       signal: AbortSignal.timeout(60000),
     });
+
+    let resolvedVehicleId: string | undefined;
+
+    // 4. On 404, fall back to catalog resolve with alias candidates before giving up
+    if (response.status === 404) {
+      const resolved = await this.resolveCar(req.make, req.model);
+      if (resolved?.vehicleId) {
+        resolvedVehicleId = resolved.vehicleId;
+        const resolvedParams = new URLSearchParams({
+          vehicle: resolved.vehicleId,
+          view: req.view ?? 'front-3-4',
+          format,
+          w: String(req.width ?? 800),
+          h: String(req.height ?? 600),
+          trim: '1',
+        });
+        if (req.color) resolvedParams.set('color', req.color);
+
+        const retryUrl = `${this.baseUrl}/images/car?${resolvedParams.toString()}`;
+        response = await fetch(retryUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            Accept: 'image/webp, image/png, image/jpeg, */*',
+          },
+          signal: AbortSignal.timeout(60000),
+        });
+      }
+    }
 
     if (response.status === 404) {
       return null;
@@ -166,11 +303,14 @@ export class CarImageClient {
       throw new Error(`carimage.dev request failed with status ${response.status}: ${errText}`);
     }
 
-    // 4. Save image bytes locally
-    const buffer = Buffer.from(await response.arrayBuffer());
-    fs.writeFileSync(localFilePath, buffer);
-
-    return { url: publicUrl, altText };
+    // 5. Save and validate image bytes atomically
+    return this.saveAndValidateImage(response, localFilePath, publicUrl, altText, {
+      make: req.make,
+      model: req.model,
+      year: req.year,
+      view: req.view,
+      resolvedVehicleId,
+    });
   }
 }
 

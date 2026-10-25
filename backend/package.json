@@ -10,7 +10,10 @@
     "db:seed:vehicles": "tsx src/scripts/seed-vehicles.ts",
     "db:seed:images": "tsx src/scripts/seed-images.ts",
     "db:seed": "npm run db:seed:vehicles && npm run db:seed:images",
-    "db:create-admin": "tsx src/scripts/create-admin.ts"
+    "db:create-admin": "tsx src/scripts/create-admin.ts",
+    "db:check-account": "tsx src/scripts/check-carimage-account.ts",
+    "db:audit-images": "tsx src/scripts/audit-images.ts",
+    "db:test-resolve": "tsx src/scripts/test-resolve-missing.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
