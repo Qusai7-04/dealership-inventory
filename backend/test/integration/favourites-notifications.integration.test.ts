@@ -78,4 +78,24 @@ describe('favourites and targeted notifications', () => {
     await request(app).put('/api/favourites/bad').set(bearer(0)).expect(400);
     await request(app).put(`/api/favourites/${crypto.randomUUID()}`).set(bearer(0)).expect(404);
   });
+
+  it('changes only the owner preference and removes a favourite without erasing alerts', async () => {
+    const id = await vehicle('preference', 0);
+    await request(app).put(`/api/favourites/${id}`).set(bearer(0)).expect(200);
+    await request(app).put(`/api/favourites/${id}`).set(bearer(1)).expect(200);
+    await request(app).patch(`/api/favourites/${id}/notification-preference`).set(bearer(0)).send({ notifyOnRestock: true }).expect(200);
+    expect((await request(app).put(`/api/favourites/${id}`).set(bearer(0)).expect(200)).body.favourite.notifyOnRestock).toBe(true);
+    expect((await request(app).get('/api/favourites').set(bearer(1))).body.favourites[0].notifyOnRestock).toBe(false);
+    await request(app).patch(`/api/favourites/${id}/notification-preference`).set(bearer(0)).send({ notifyOnRestock: 'false' }).expect(400);
+    await request(app).patch(`/api/favourites/${id}/notification-preference`).set(bearer(0)).send({ notifyOnRestock: false }).expect(200);
+    await request(app).patch(`/api/favourites/${id}/notification-preference`).set(bearer(0)).send({ notifyOnRestock: true }).expect(200);
+    await pool.query("INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message) VALUES ($1, $2, 'back_in_stock', $3, 'Stock returned')", [users[0], id, crypto.randomUUID()]);
+    await request(app).delete(`/api/favourites/${id}`).set(bearer(0)).expect(200);
+    await request(app).delete(`/api/favourites/${id}`).set(bearer(0)).expect(200);
+    expect((await request(app).get('/api/favourites').set(bearer(0))).body.favourites).toEqual([]);
+    expect((await request(app).get('/api/favourites').set(bearer(1))).body.favourites).toHaveLength(1);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE recipient_id = $1', [users[0]])).rows[0].count).toBe(1);
+    await request(app).patch(`/api/favourites/${id}/notification-preference`).set(bearer(0)).send({ notifyOnRestock: true }).expect(404);
+    await request(app).delete('/api/favourites/bad').set(bearer(0)).expect(400);
+  });
 });
