@@ -35,6 +35,7 @@ describe('cart and purchase integration', () => {
   });
 
   afterAll(async () => {
+    await pool.query('DELETE FROM notifications WHERE vehicle_id IN (SELECT id FROM vehicles WHERE make LIKE $1)', [`${prefix}%`]);
     await pool.query('DELETE FROM purchase_items WHERE purchase_id IN (SELECT id FROM purchases WHERE user_id = ANY($1::uuid[]))', [users]);
     await pool.query('DELETE FROM purchases WHERE user_id = ANY($1::uuid[])', [users]);
     await pool.query('DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = ANY($1::uuid[]))', [users]);

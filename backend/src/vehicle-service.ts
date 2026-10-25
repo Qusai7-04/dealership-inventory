@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { getPool, query } from './db.js';
 import { AppError } from './errors.js';
+import { recordStockNotifications } from './notification-service.js';
 
 const maxInteger = 2_147_483_647;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -245,8 +246,10 @@ export async function restockVehicle(id: string, input: unknown, actorId: string
       if (!exists.rows[0]) throw new AppError(404, 'Vehicle not found');
       throw new AppError(409, 'Restock would exceed the maximum quantity');
     }
-    await client.query("INSERT INTO stock_receipts (vehicle_id, actor_id, kind, quantity_added, request_id, resulting_quantity) VALUES ($1, $2, 'restock', $3, $4, $5)", [id, actorId, quantity, requestId, updated.rows[0].quantity]);
+    const receipt = await client.query<{ id: string }>("INSERT INTO stock_receipts (vehicle_id, actor_id, kind, quantity_added, request_id, resulting_quantity) VALUES ($1, $2, 'restock', $3, $4, $5) RETURNING id", [id, actorId, quantity, requestId, updated.rows[0].quantity]);
     const result = await selected(client, id);
+    await recordStockNotifications(client, id, `${result.make} ${result.model}`,
+      updated.rows[0].quantity - quantity, updated.rows[0].quantity, result.lowStockThreshold, `restock:${receipt.rows[0].id}:${id}`);
     await client.query('COMMIT');
     return result;
   } catch (error) {

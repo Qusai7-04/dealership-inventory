@@ -50,6 +50,16 @@ export async function markNotificationRead(userId: string, id: string) {
 
 export async function recordStockNotifications(client: pg.PoolClient, vehicleId: string, label: string,
   oldQuantity: number, newQuantity: number, threshold: number, eventKey: string) {
+  if (oldQuantity === 0 && newQuantity > 0) {
+    await client.query(
+      `INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message)
+       SELECT f.user_id, $1, 'back_in_stock', $2, $3 FROM favourites f
+       JOIN users u ON u.id = f.user_id
+       WHERE f.vehicle_id = $1 AND f.notify_on_restock = true AND u.is_active = true
+       ON CONFLICT (recipient_id, type, event_key) DO NOTHING`,
+      [vehicleId, eventKey, `${label} is back in stock`]
+    );
+  }
   const type = oldQuantity > 0 && newQuantity === 0 ? 'out_of_stock'
     : oldQuantity > threshold && newQuantity > 0 && newQuantity <= threshold ? 'low_stock' : null;
   if (type) {

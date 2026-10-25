@@ -57,6 +57,7 @@ describe('Vehicle inventory integration', () => {
   });
 
   afterAll(async () => {
+    await pool.query('DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM users WHERE email LIKE $1)', [`${prefix}%`]);
     const hasReceipts = await pool.query("SELECT to_regclass('public.stock_receipts') AS name");
     if (hasReceipts.rows[0].name) {
       await pool.query('DELETE FROM stock_receipts WHERE vehicle_id IN (SELECT id FROM vehicles WHERE make LIKE $1)', [`${prefix}%`]);

@@ -45,6 +45,7 @@ describe('favourites and targeted notifications', () => {
 
   afterAll(async () => {
     if (users) {
+      await pool.query('DELETE FROM notifications WHERE vehicle_id IN (SELECT id FROM vehicles WHERE make LIKE $1)', [`${prefix}%`]);
       await pool.query('DELETE FROM notifications WHERE recipient_id = ANY($1::uuid[])', [users]);
       await pool.query('DELETE FROM favourites WHERE user_id = ANY($1::uuid[])', [users]);
       await pool.query('DELETE FROM purchase_items WHERE purchase_id IN (SELECT id FROM purchases WHERE user_id = ANY($1::uuid[]))', [users]);
@@ -134,15 +135,15 @@ describe('favourites and targeted notifications', () => {
   it('notifies active admins only when a direct purchase crosses into positive low stock', async () => {
     const id = await vehicle('low-direct', 4, 3);
     await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
-    const alerts = await pool.query("SELECT recipient_id, type, event_key FROM notifications WHERE vehicle_id = $1 ORDER BY recipient_id", [id]);
+    const alerts = await pool.query("SELECT recipient_id, type, event_key FROM notifications WHERE vehicle_id = $1 AND recipient_id = ANY($2::uuid[]) ORDER BY recipient_id", [id, users]);
     expect(alerts.rows.map((row) => row.recipient_id).sort()).toEqual([users[2], users[3]].sort());
     expect(alerts.rows.map((row) => row.type)).toEqual(['low_stock', 'low_stock']);
     expect(new Set(alerts.rows.map((row) => row.event_key)).size).toBe(1);
     await request(app).post(`/api/vehicles/${id}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
-    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [id])).rows[0].count).toBe(2);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1 AND recipient_id = ANY($2::uuid[])', [id, users])).rows[0].count).toBe(2);
     const zeroThreshold = await vehicle('threshold-zero', 2, 0);
     await request(app).post(`/api/vehicles/${zeroThreshold}/purchase`).set(bearer(0)).send({ requestId: crypto.randomUUID() }).expect(200);
-    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1', [zeroThreshold])).rows[0].count).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM notifications WHERE vehicle_id = $1 AND recipient_id = ANY($2::uuid[])', [zeroThreshold, users])).rows[0].count).toBe(0);
   });
 
   it('creates distinct out-of-stock and low-stock alerts for direct and cart sales', async () => {
@@ -150,7 +151,7 @@ describe('favourites and targeted notifications', () => {
     const directKey = crypto.randomUUID();
     await request(app).post(`/api/vehicles/${directId}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200);
     await request(app).post(`/api/vehicles/${directId}/purchase`).set(bearer(0)).send({ requestId: directKey }).expect(200);
-    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 GROUP BY type', [directId])).rows).toEqual([{ type: 'out_of_stock', count: 2 }]);
+    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 AND recipient_id = ANY($2::uuid[]) GROUP BY type', [directId, users])).rows).toEqual([{ type: 'out_of_stock', count: 2 }]);
 
     const lowId = await vehicle('low-cart', 4, 3);
     const outId = await vehicle('out-cart', 1, 3);
@@ -158,8 +159,8 @@ describe('favourites and targeted notifications', () => {
     const checkoutBody = { requestId: crypto.randomUUID(), items: [lowId, outId].map((vehicleId) => ({ vehicleId, price: '10.25' })) };
     await request(app).post('/api/cart/checkout').set(bearer(0)).send(checkoutBody).expect(200);
     await request(app).post('/api/cart/checkout').set(bearer(0)).send(checkoutBody).expect(200);
-    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 GROUP BY type', [lowId])).rows).toEqual([{ type: 'low_stock', count: 2 }]);
-    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 GROUP BY type', [outId])).rows).toEqual([{ type: 'out_of_stock', count: 2 }]);
+    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 AND recipient_id = ANY($2::uuid[]) GROUP BY type', [lowId, users])).rows).toEqual([{ type: 'low_stock', count: 2 }]);
+    expect((await pool.query('SELECT type, count(*)::int AS count FROM notifications WHERE vehicle_id = $1 AND recipient_id = ANY($2::uuid[]) GROUP BY type', [outId, users])).rows).toEqual([{ type: 'out_of_stock', count: 2 }]);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [lowId])).rows[0].quantity).toBe(3);
     expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [outId])).rows[0].quantity).toBe(0);
   });
