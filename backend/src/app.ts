@@ -5,6 +5,7 @@ import { errorHandler } from './errors.js';
 import vehicleRouter from './vehicle-routes.js';
 import cartRouter from './cart-routes.js';
 import favouriteRouter from './favourite-routes.js';
+import notificationRouter from './notification-routes.js';
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/vehicles', vehicleRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/favourites', favouriteRouter);
+app.use('/api/notifications', notificationRouter);
 app.use(errorHandler);
 
 export default app;
