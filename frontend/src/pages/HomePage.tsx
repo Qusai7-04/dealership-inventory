@@ -71,24 +71,7 @@ export function HomePage() {
 
   return (
     <main className="home-page min-h-screen bg-paper-base flex flex-col">
-      {/* SECTION 1: ARCHIVAL META TICKER */}
-      <div className="w-full border-b-[1.5px] border-ink-solid bg-[#ECE7DE] py-2 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between text-on-surface-variant font-stamp-badge text-[11px] uppercase tracking-widest gap-2">
-          <div className="flex items-center gap-4">
-            <span className="text-ink-solid font-bold">RECORD LEDGER: 2026-Q1</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-ink-solid" />
-            <span>TERMINAL: DL-0941</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-ink-solid hidden sm:inline" />
-            <span className="hidden sm:inline">PHYSICAL FLOOR STOCK ONLY</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="inline-block w-2 h-2 rounded-full bg-live-lime border border-ink-solid" />
-            <span className="text-ink-solid font-bold">SHOWROOM SYNC: 100% ONLINE</span>
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 2: EDITORIAL HERO & SEARCH MOTOR REGISTER */}
+      {/* SECTION 1: EDITORIAL HERO & SEARCH MOTOR REGISTER */}
       <section className="w-full px-4 sm:px-6 lg:px-8 pt-10 pb-16 border-b-[1.5px] border-ink-solid bg-paper-base">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
           {/* Left Column: Editorial Headline & Register Form */}

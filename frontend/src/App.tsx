@@ -17,13 +17,10 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/sign-in" element={<SignInPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        
-        {/* Customer routes wrapped by AppShell */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<AppShell />}>
+        {/* Customer & Storefront routes wrapped by AppShell */}
+        <Route element={<AppShell />}>
+          <Route path="/" element={<HomePage />} />
+          <Route element={<ProtectedRoute />}>
             <Route path="/vehicles" element={<CataloguePage />} />
             <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
@@ -32,6 +29,9 @@ export default function App() {
             <Route path="/purchases" element={<PurchasesPage />} />
           </Route>
         </Route>
+
+        <Route path="/sign-in" element={<SignInPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
         {/* Dedicated Admin Shell for Administrator */}
         <Route element={<ProtectedRoute admin />}>
