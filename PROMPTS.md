@@ -1702,3 +1702,330 @@ When finished, give me a concise but specific report with:
 8. The precise steps I should perform next, including when it is safe for me to push the commits.
 
 Do not push, deploy, reset, rebase, squash or rewrite history. Do not make live image-provider requests. Do not claim the project is fully production-ready if any material check remains incomplete. The objective is to leave Creaseline technically deployment-ready, with any external licensing or manual validation blockers clearly identified and explained.
+
+### Session: Frontend retrospective, Stitch redesign and repair (2026-10-25)
+
+I am extremely unhappy with the current frontend of Creaseline. I gave detailed Stitch UI references, screen designs, a design system, a complete UI specification, API contracts and implementation instructions, but the resulting frontend looks nothing like the designs I provided. Some options also do not work properly. I do not want another round of minor CSS changes or patches on top of a bad design. I want a complete retrospective of what went wrong and a proper redesign and implementation that closely reproduces the Stitch references I am providing.
+
+The application is called Creaseline. It is a car dealership inventory and shopping application built using React, TypeScript, Vite, Tailwind CSS, Express, TypeScript and PostgreSQL. The backend already has substantial functionality. Do not throw away the working backend or start the entire application from scratch. The task is to rebuild the frontend experience properly, repair broken frontend functionality, and make the necessary carefully scoped backend changes only when an actual API gap prevents a feature from working.
+
+I am placing the ZIP file `stitch_fold_tactile_dealership_showroom.zip` inside `reference-docs`. Inspect the actual filename in the directory because it may have a suffix. Read every relevant document and inspect every reference screen before you begin changing code. Do not assume that you remember the designs from a previous conversation.
+
+The ZIP contains these primary screen references:
+
+- `creaseline_home`
+- `fold_homepage_the_pinboard`
+- `fold_the_floor_full_inventory`
+- `fold_car_sheet_paper_fold_detail`
+- `fold_cart_tear_sheet_checkout`
+- `fold_mobile_showroom_bottom_nav`
+- `fold_admin_inventory_console`
+
+Each screen has a `screen.png` and a `code.html`. There are also two design-system documents: `tactile_paper_dealership/DESIGN.md` and `printed_editorial_showroom/DESIGN.md`.
+
+Read the project's `AGENTS.md`, `README.md`, current `PROMPTS.md`, UI specification, implementation prompt, data and image rules, API contract, existing frontend code, backend API implementations, package files, tests and migrations. The Stitch screenshots and design documents are the visual source of truth. The existing application is the source of truth for the actual API contracts and business rules. Reconcile the two deliberately: implement the intended design without inventing unsupported business behavior.
+
+Do not start coding immediately. First conduct a proper retrospective, then create an implementation plan, and then execute it.
+
+## 1. Conduct a complete retrospective before making changes
+
+Inspect the current frontend from top to bottom. Identify why it looks so different from the supplied references. Check the page layouts, typography, spacing, sizing, color palette, images, card design, navigation, buttons, forms, hierarchy, responsiveness, component reuse, loading and empty states, and overall visual consistency.
+
+Inspect the actual API client and every screen's event handlers. Find controls that look functional but do nothing, buttons with missing handlers, filters that do not change the results, search boxes that are not connected to state or the API, broken favourite actions, cart operations that do not persist, checkout actions that do not submit correctly, navigation that points to the wrong place, forms that do not validate, and admin controls that do not save changes.
+
+Investigate why those failures happened. Was the original specification misunderstood? Were the reference HTML files copied incompletely? Was the design replaced by generic components? Were the API contracts not read? Did the implementation focus on getting something to render instead of reproducing the actual design? Identify the real causes rather than guessing.
+
+Create a concise retrospective in `docs/frontend-retrospective.md`. Include the major visual differences, functional failures, root causes, corrective principles, and a screen-by-screen recovery plan. Keep this document factual and specific to the code you inspect.
+
+Do not use the retrospective as an excuse to spend the entire task writing documentation. Once the diagnosis is complete, implement the redesign.
+
+## 2. Reproduce the supplied Stitch visual language
+
+The current frontend is not acceptable simply because it builds. The visual result must closely match the supplied Stitch screenshots in composition, proportions, hierarchy, typography, imagery, spacing, card structure, navigation and overall feel.
+
+The intended design is a tactile, editorial, paper-inspired car showroom. It should feel like a beautifully art-directed printed automotive catalogue, not a generic SaaS dashboard, not a standard e-commerce template, and not a collection of default Tailwind cards.
+
+Follow the supplied design system. Its core visual language includes warm cream backgrounds around `#F2EDE4`, paper surfaces around `#E8E1D4`, recessed surfaces around `#DCD3C2`, dark ink around `#16150F`, electric blue around `#2F4BFF`, and lime accents around `#C6F24E`. Use orange for low-stock warnings and a clear red treatment for errors or zero availability. Use the exact references to determine where each color belongs rather than applying all the colors everywhere.
+
+Use Space Grotesk for headings and navigation, Instrument Serif for editorial italic accents, Inter for body copy, and Space Mono for numeric details and prices, with sensible fallbacks if a font cannot load. Do not make the interface depend on a third-party font request to remain usable.
+
+Use strong ink borders, deliberate offset shadows, editorial typography, asymmetric composition where the reference calls for it, tactile paper surfaces, restrained accent colors and carefully controlled whitespace. Use the pinboard collage treatment on the screens where the reference shows it. Do not turn every page into a collage. Catalogue browsing should remain easy to scan, and administrative workflows should be dense enough to use while retaining the same design language.
+
+Avoid glassmorphism, generic purple gradients, oversized rounded cards everywhere, generic dashboard templates, random decorative icons, excessive pill-shaped controls, unnecessary gradients, and default component-library styling that does not appear in the references.
+
+Do not redesign the application according to your personal preference. Study the screenshots and recreate what is actually there. Where the supplied screen differs from another screen, preserve the difference. Use the HTML exports to understand the intended structure, but rewrite them as proper reusable React components instead of embedding static HTML as the production application.
+
+Create a coherent design-token system for colors, typography, borders, shadows, spacing, content widths, breakpoints and interactive states. Apply it consistently across the app. Reuse components where that helps consistency, but do not force structurally different screens into the same generic layout.
+
+## 3. Treat visual fidelity as a release requirement
+
+Before implementation, inspect the reference PNGs at full resolution. Identify the major layout regions and proportions in each screen: header, hero, navigation, editorial labels, vehicle imagery, grid columns, sidebar or filter rail, pricing, card dimensions, action placement, footer and mobile navigation.
+
+If you have access to a browser or screenshot tool, capture the current application and compare it with the references. If you cannot run a browser, use the supplied screenshots and HTML to establish the intended structure and verify the generated build assets and component code. Never claim visual verification was completed if you could not perform it.
+
+Do not call a screen complete because the page loads or the tests pass. A page can be functionally correct and visually terrible. Both matter.
+
+Implement the screens in a deliberate order:
+
+1. Shared design tokens, typography, layout primitives, buttons, inputs, status labels, navigation and vehicle-image components.
+2. Main Creaseline homepage and the pinboard-style homepage shown in the references. Preserve their intended composition and distinctiveness.
+3. Full catalogue / The Floor, including its filters, sorting, search, pagination and vehicle cards.
+4. Vehicle detail / the paper-fold car sheet.
+5. Cart, tear-sheet checkout, confirmation and error states.
+6. Authentication screens, including sign in and registration.
+7. Favourites and restock-notification preferences.
+8. Notifications inbox and purchase history.
+9. Admin inventory console, including its overview, search, filtering, forms, restock and deletion workflows.
+10. Mobile layouts and bottom navigation.
+11. Empty, loading, error, unauthorized, zero-stock, missing-image and checkout-conflict states across all relevant screens.
+
+After each group of screens, verify that the new implementation follows the same design system and that previously completed screens have not regressed.
+
+## 4. Fix vehicle cards and out-of-stock presentation properly
+
+One especially unacceptable behavior in the current implementation is that an out-of-stock vehicle appears black or visually destroyed. This must be fixed.
+
+An out-of-stock car should still display its vehicle image normally. The image should never be blacked out, removed, replaced with a dark overlay, or made visually unreadable simply because quantity is zero.
+
+Use the following behavior:
+
+- Preserve the full-color vehicle image.
+- Show a clearly visible, well-designed `OUT OF STOCK` label or bookmark/ribbon treatment that fits the paper-editorial design.
+- Keep the make, model, price and other legitimate catalogue information readable.
+- Disable the add-to-cart and purchase actions when stock is zero.
+- Explain why the action is unavailable, rather than making a button silently do nothing.
+- Where supported by the existing backend, allow a user to favourite the vehicle and opt into a back-in-stock notification.
+- Keep the card visually attractive and place sold-out items after available items by default, unless the selected sort order explicitly requires a different order.
+- Provide a clear availability filter so users can choose to see only available vehicles or include sold-out ones.
+- If a shopper opens a sold-out vehicle's detail page, show the image, details, price and a clear unavailable status, together with the supported favourite/restock-notification option.
+- When a checkout conflict occurs because stock has changed, preserve the cart and show a helpful explanation with refreshed availability. Do not silently delete the item or erase the shopper's guidance.
+
+Low-stock vehicles must also have an appropriate visual status, but do not make the whole card look like an error. Stock states should be visually distinct, accessible and consistent.
+
+Use the existing API's real stock values. Do not hardcode an arbitrary quantity or availability state into the UI.
+
+## 5. Vehicle imagery is a major part of this redesign
+
+This is a car showroom. Vehicle images are not optional decoration. They are among the most important elements of the interface, and the current result must not substitute black rectangles, empty image boxes, broken image icons or generic placeholders where a proper image can be provided.
+
+Audit the actual cached image files, the `vehicle_images` database table, backend image-serving paths, API response shapes, image URL utilities, and the existing fallback component.
+
+Use this image priority:
+
+1. The correct valid cached image for that exact vehicle, if available and licensed for the intended use.
+2. Another valid image associated with that same vehicle, if available.
+3. A suitable local, generated illustrative image for the missing vehicle, if image generation is available and its use is appropriate.
+4. A polished local SVG or CSS fallback that looks deliberately designed, never a black rectangle or a broken image.
+
+The missing-image fallback should preserve the layout's aspect ratio, visual quality and paper-showroom styling. It should contain a useful vehicle silhouette or tasteful automotive illustration, with a restrained background and accessible descriptive text.
+
+If you can use an available image-generation capability, generate a cohesive collection of locally stored automotive showroom images for vehicles that have no suitable image. Use a consistent art direction, lighting, background and image framing so the catalogue feels like one professionally photographed or illustrated collection. Match the images to the correct vehicle entries where practical. Do not generate the same car image repeatedly and pretend it depicts different models.
+
+Do not claim generated renders are authentic photographs of real cars. Use clearly illustrative demo imagery and do not suggest that a generated image is an exact OEM representation. If image generation is unavailable, create good-looking local SVG automotive illustrations and use the permitted cached images for the rest.
+
+Do not call CarImage.dev or any paid image provider, consume credits, or add a new paid API dependency. Do not move API keys into the frontend. Keep image assets local and deterministic for development and deployment.
+
+Make sure image paths work in both Vite development and the production build. Check `object-fit`, aspect ratio, responsive sizing, lazy loading where appropriate, fallback handling, alt text and image loading failures. Images should be sharp and appropriately cropped rather than stretched.
+
+## 6. Fabricated demo values are allowed, but keep them coherent
+
+This is a portfolio project, not a real operating dealership. You may use fictional demonstration data to make the application visually compelling and demonstrate the complete user journey.
+
+Do not let the unresolved original CSV licensing question force the UI to look empty. If the original dataset cannot be redistributed, use a separate deterministic catalogue of clearly labelled fictional demo vehicles and sample values, with an appropriate disclaimer.
+
+Fictional demo data may include makes, models, prices in INR, categories and stock quantities. Do not imply that fictional inventory is live inventory from an actual dealer. Use sample values consistently across the homepage, catalogue, detail pages, cart and admin interface. Do not invent unrelated totals or display metrics that contradict the actual demo database.
+
+Use the existing database schema and API wherever possible. If you need a demo seeder, make it deterministic and idempotent. It must not reset stock or overwrite existing records when run a second time. Do not run a seeder against my existing development database without explicit approval.
+
+For example, a demo homepage may show editorially selected vehicles, a featured showroom section, catalogue highlights, and useful calls to browse or sign in. Do not fabricate live revenue, customer activity, recent purchases or other real-time operational statistics just to fill space.
+
+Make the demo data attractive and varied enough to showcase the interface. However, do not invent unsupported technical specifications such as mileage, engine type, fuel type, transmission, model year, VIN or performance claims if the application does not actually store them. If a field is necessary for a visual demo, add it only through a deliberate, properly tested schema/API change, or use a clear illustrative label rather than presenting it as a verified fact.
+
+## 7. Rebuild the homepage around the reference
+
+The homepage should not be a generic welcome page with a title, a few cards and a button.
+
+Study both the `creaseline_home` and `fold_homepage_the_pinboard` screenshots and implement their actual visual structure. Reproduce the editorial hero, large typography, asymmetrical image placement, pinboard elements, featured vehicle imagery, catalogue entry points, price presentation, brand marks and spacing shown in the references.
+
+The page should immediately communicate the identity of Creaseline. It should feel like a considered automotive publication and showroom, not a student project dashboard.
+
+The hero must adapt to the user's authentication state without breaking the design. A visitor can see the public-facing hero and sign-in/register or browse-demo actions without triggering unauthorized API requests. An authenticated shopper should see the appropriate personalized actions and real catalogue data.
+
+Keep decorative elements intentional. Do not fill empty space with random icons, generic stats, arbitrary badges or filler cards. The design must look composed rather than assembled from unrelated components.
+
+## 8. Rebuild the full catalogue experience
+
+The full-inventory page must closely follow `fold_the_floor_full_inventory`.
+
+Implement the actual layout and hierarchy shown in the screenshot. Vehicle cards must have consistent image framing, typography, borders, price hierarchy, status treatments and actions. Search and filters must be visually integrated into the design, not floating generic controls.
+
+Wire every visible control to the real application state and API:
+
+- Search by supported make/model fields.
+- Filter by actual supported category, price and availability.
+- Sort by supported price, relevance or other actual API fields.
+- Reset filters correctly.
+- Paginate through real results.
+- Keep selected filter values visible and synchronized with the results.
+- Show loading, no-results, API-error and empty-catalogue states.
+- Ensure that changing filters or pages does not create confusing stale results.
+- Preserve the chosen sort and filter state when the design and routing allow it.
+
+Do not make controls appear interactive if they are not connected to real behavior. Do not use fake counts that disagree with the returned data. If an API limitation prevents a filter from working correctly, fix the API with tests or provide an honest supported alternative.
+
+## 9. Rebuild the vehicle detail sheet
+
+Follow `fold_car_sheet_paper_fold_detail` closely. Recreate the editorial car-sheet presentation, imagery, title hierarchy, pricing, detail layout, availability treatment, action placement and paper-fold visual details.
+
+The add-to-cart animation should happen only after the server successfully adds the item. A failed request must not display a fake success animation.
+
+Make the favorite action persist. Show its actual active state. Keep the quantity and availability rules consistent with the backend. Do not introduce a quantity selector if the existing cart rules intentionally allow one item per distinct vehicle.
+
+Direct purchase must use the existing purchase API and correctly handle out-of-stock errors, authentication errors and network failures. The detail page must never invent a successful purchase when the backend rejects the request.
+
+Ensure that the user can navigate back to the catalogue without losing the expected context where practical.
+
+## 10. Rebuild the cart and checkout
+
+Follow `fold_cart_tear_sheet_checkout` closely. The cart should feel like a designed paper order sheet, not a default table or generic e-commerce checkout.
+
+Use the actual cart response and server-calculated subtotal. Preserve decimal price strings and do not use floating-point arithmetic to recompute authoritative totals.
+
+Wire up add, remove and clear actions using the real API. Respect the one-unit-per-distinct-vehicle rule. Display price changes and unavailable inventory clearly.
+
+Checkout must send the exact request shape expected by the backend, including the request UUID and the current vehicle IDs and price strings. Keep the existing transactional and idempotent checkout behavior.
+
+Handle success, loading, duplicate submissions, 401 responses, network errors, stock conflicts and stale prices. On a conflict, show updated stock and preserve the shopper's cart and useful guidance. Do not clear the cart before the server confirms the purchase.
+
+The confirmation page must display the actual purchase result. Do not fabricate order identifiers, totals or purchase status.
+
+## 11. Make every option and action work
+
+Audit every visible interactive element throughout the entire application. This includes desktop navigation, mobile bottom navigation, search, filters, sorting, pagination, buttons, favourite controls, notification preferences, mark-as-read actions, forms, modals, confirmation dialogs, admin table actions, edit forms, restock controls and logout.
+
+Create a functionality inventory during the retrospective, recording the screen, control, expected behavior, existing behavior and fix. Keep it in the retrospective document or a closely related checklist. Use it to make sure no important control is forgotten.
+
+Every control must do one of the following:
+
+1. Perform its advertised action successfully.
+2. Be intentionally disabled with a clear explanation.
+3. Be removed if it has no meaningful purpose in the supplied design.
+
+No dead buttons, placeholder links, fake dropdowns, nonfunctional toggles, or controls that merely change appearance without performing the operation.
+
+Centralize API calls in the existing typed API client. Do not scatter ad hoc `fetch` calls throughout components. Preserve bearer-token handling, safe error parsing, authentication state, request cancellation where appropriate, and correct handling of unauthorized responses.
+
+Keep the UI state synchronized with successful server responses. Show loading indicators during requests, prevent accidental duplicate submissions, provide helpful feedback for failures, and make empty states intentional.
+
+Do not swallow errors just to make the interface appear to work.
+
+## 12. Admin inventory console
+
+Follow `fold_admin_inventory_console` as the visual reference. The admin console should look like the same Creaseline product, with the appropriate density and controls for managing inventory.
+
+Use the actual inventory summary API for dashboard metrics. Do not invent revenue, customer numbers or inventory statistics. Make the table or list legible, with clear stock indicators, search, supported filters, pagination, pricing and row actions.
+
+Implement and verify the existing supported workflows:
+
+- Create a vehicle using the actual supported fields.
+- Edit supported vehicle fields without accidentally changing quantity through an ordinary edit.
+- Restock through the real restock endpoint.
+- Display appropriate opening/restock receipt history where the existing API supports it.
+- Soft-delete with a clear confirmation dialog and correct handling of the result.
+- Show low-stock and zero-stock states clearly.
+- Handle validation errors and concurrent changes without silently losing user input.
+- Enforce admin permissions in the backend, not just by hiding UI controls.
+
+If an API is missing for a feature that is explicitly required by the design, add the smallest necessary endpoint and follow the project's TDD rules. Do not create an unnecessarily large new API just to make a dashboard look populated.
+
+## 13. Authentication, favourites, notifications and history
+
+Rebuild these screens using the same paper-editorial design system rather than treating them as unrelated generic pages.
+
+Sign in and registration must have polished form layouts, clear validation, password visibility if appropriate, loading states and helpful error feedback. Registration must never offer a role selector that could allow users to assign themselves admin access.
+
+Favourites must persist through the backend. The restock-notification preference must accurately reflect the saved server state.
+
+The notifications inbox must show the actual notification data, unread count, pagination and mark-one-read behavior supported by the API. Do not add a nonfunctional mark-all-read control.
+
+Purchase history must come from the authenticated user's real purchase-history endpoint. Do not display another user's records or fabricate past purchases.
+
+If the user is logged out, show the intended sign-in state without making unauthorized calls. If a session expires, handle it cleanly without destroying the user's cart guidance unnecessarily.
+
+## 14. Responsive behavior and accessibility
+
+Study `fold_mobile_showroom_bottom_nav` carefully. Mobile is not merely the desktop design squeezed into a smaller width. Reproduce the intended mobile navigation, card layout, spacing, image framing and actions.
+
+Verify the application at sensible mobile, tablet and desktop widths. Avoid horizontal overflow, clipped prices, overlapping buttons, unreadable table content, awkward image crops and fixed elements that cover the main content.
+
+Support keyboard navigation, visible focus indicators, semantic buttons and links, useful form labels, accessible status announcements and appropriate contrast. Respect reduced-motion preferences, especially for paper-fold or add-to-cart animations. Do not make color the only indication of stock status.
+
+## 15. Technical implementation constraints
+
+Preserve the existing stack and folder structure unless a specific defect requires a carefully justified change. Do not replace React, TypeScript, Vite, Tailwind or the existing backend framework. Avoid adding large dependencies when the same result can be achieved with the existing stack.
+
+Use reusable components for the shared design system, but keep components understandable and appropriately scoped. Do not build the whole app as one massive component. Keep page-specific layout and behavior separate where it makes the code clearer.
+
+Do not copy the Stitch static HTML wholesale into production, embed entire screens as static markup, or replace React with static HTML. The result must be a real working application.
+
+Inspect the actual existing APIs and DTOs before wiring components. Do not guess response fields or make the frontend expect a response format that the backend does not return. Keep prices as decimal strings when required. Keep authentication and authorization on the server.
+
+Preserve the current database integrity, stock receipt accounting, transaction boundaries, idempotency and test database isolation. Do not run destructive commands against my development database. Do not change `.env`, expose secrets, run image-provider calls or push to GitHub.
+
+## 16. Testing and TDD
+
+Follow `AGENTS.md`, the existing project instructions and the Incubyte Kata requirements.
+
+For genuine defects, write a focused regression test that demonstrates the incorrect behavior, observe the failing result, commit the RED test separately, implement the smallest correction, verify the GREEN result and commit it separately. Refactor only when justified. Do not invent artificial failures or rewrite existing commit history.
+
+Add or update frontend tests for meaningful behavior, including search and filters, zero-stock actions, favourite state, checkout conflicts, cart preservation, API errors, authentication guards, forms and admin workflows. Use the project's existing test stack where possible.
+
+If a missing backend API must be added, cover it with backend tests and database integration tests using the dedicated test database. Never let tests silently fall back to the development database.
+
+Run the full backend and frontend test suites, the production build, dependency audit and `git diff --check` after the redesign. Report actual command results. Do not claim a test passed unless it actually ran and passed.
+
+## 17. Visual verification and acceptance criteria
+
+Visual quality is a first-class requirement for this task.
+
+If browser control is available, run the application locally, capture screenshots at desktop and mobile sizes, and compare them directly against the Stitch PNG references. Fix substantial differences in composition, spacing, typography, imagery, colors, borders and card proportions before moving on. Repeat the comparison after major corrections.
+
+If browser control is unavailable, state that limitation honestly. Still inspect every reference screenshot and HTML export, implement the closest faithful result possible, verify the production build and provide precise instructions for me to perform the remaining browser comparison.
+
+Do not mark the redesign complete simply because there are no TypeScript errors.
+
+The final frontend must meet these requirements:
+
+- The homepage visibly resembles the supplied Creaseline/Fold references.
+- The catalogue uses the intended editorial vehicle-card design and has working filters, sorting, search and pagination.
+- Vehicle images remain visible for sold-out vehicles, with a clear out-of-stock label and disabled purchase actions.
+- Missing images use proper local illustrative imagery or a polished automotive fallback, never a black box.
+- The detail, cart, checkout, authentication and admin screens use the same visual language as their references.
+- All visible controls perform their advertised actions or are deliberately disabled with an explanation.
+- Server data, stock status, cart totals and purchase results remain authoritative.
+- The layout works at mobile and desktop widths.
+- Loading, empty, error, unauthorized and conflict states are designed rather than left as raw errors or blank screens.
+- The project builds and all applicable tests pass.
+
+## 18. Final delivery and reporting
+
+Before finishing, inspect the final diff and `git status --short --branch`. Keep changes focused and remove accidental temporary files or generated build output that should not be committed.
+
+Append this complete prompt verbatim to `PROMPTS.md` if it is not already there, without deleting or replacing earlier prompts. Follow the existing AI co-authorship convention for commits, but do not fabricate attribution or alter existing history.
+
+Give me a final report with:
+
+1. The root causes found in the original frontend and the retrospective document created.
+2. The screens redesigned and how they match the supplied references.
+3. The functionality failures found and fixed.
+4. The out-of-stock and missing-image behavior implemented.
+5. Whether any new local demo imagery was generated and which assets it covers.
+6. Any API or database changes and why they were necessary.
+7. The exact tests, builds and audits run, with real results.
+8. Whether visual browser comparison was actually completed.
+9. Remaining issues or limitations.
+10. The commit IDs for the RED/GREEN changes, final Git status and next steps.
+
+Do not push to GitHub, deploy to Render, run destructive database operations, or call any paid image service. Preserve the existing history. I will review the actual result before deciding what to do next.
+
+The goal is not to make the current ugly UI slightly better. The goal is to replace it with a polished, visually faithful, properly working Creaseline frontend based on the exact Stitch references I supplied.
