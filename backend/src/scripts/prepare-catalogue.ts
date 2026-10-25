@@ -55,7 +55,10 @@ export function runPrepareCatalogue(csvPath?: string) {
   return report;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('prepare-catalogue.ts')) {
+if (
+  process.argv[1] &&
+  (process.argv[1].endsWith('prepare-catalogue.ts') || process.argv[1].endsWith('prepare-catalogue.js'))
+) {
   const report = runPrepareCatalogue();
   console.log('Catalogue Preparation Report:', JSON.stringify(report, null, 2));
 }
