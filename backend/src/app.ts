@@ -6,6 +6,7 @@ import vehicleRouter from './vehicle-routes.js';
 import cartRouter from './cart-routes.js';
 import favouriteRouter from './favourite-routes.js';
 import notificationRouter from './notification-routes.js';
+import { adminRouter, categoryRouter, purchaseRouter } from './read-model-routes.js';
 
 import path from 'node:path';
 import fs from 'node:fs';
@@ -38,6 +39,9 @@ app.use('/api/vehicles', vehicleRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/favourites', favouriteRouter);
 app.use('/api/notifications', notificationRouter);
+app.use('/api/vehicle-categories', categoryRouter);
+app.use('/api/purchases', purchaseRouter);
+app.use('/api/admin', adminRouter);
 app.use(errorHandler);
 
 export default app;

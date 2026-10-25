@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, requireRole } from './auth.js';
 import { createVehicle, deleteVehicle, getVehicle, listVehicles, restockVehicle, updateVehicle } from './vehicle-service.js';
 import { directPurchase } from './purchase-service.js';
+import { listStockReceipts } from './read-model-service.js';
 
 const router = Router();
 const admin = [authenticate, requireRole('admin')];
@@ -26,6 +27,9 @@ router.delete('/:id', ...admin, async (request, response, next) => {
 });
 router.post('/:id/restock', ...admin, async (request, response, next) => {
   try { response.json({ vehicle: await restockVehicle(request.params.id as string, request.body, request.user!.id) }); } catch (error) { next(error); }
+});
+router.get('/:id/stock-receipts', ...admin, async (request, response, next) => {
+  try { response.json(await listStockReceipts(request.params.id as string, request.query)); } catch (error) { next(error); }
 });
 router.post('/:id/purchase', authenticate, async (request, response, next) => {
   try { response.json({ purchase: await directPurchase(request.user!.id, request.params.id as string, request.body) }); } catch (error) { next(error); }
