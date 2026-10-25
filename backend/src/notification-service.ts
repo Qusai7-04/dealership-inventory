@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import { AppError } from './errors.js';
+import type pg from 'pg';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -45,4 +46,16 @@ export async function markNotificationRead(userId: string, id: string) {
   );
   if (!result.rows[0]) throw new AppError(404, 'Notification not found');
   return { notification: notification(result.rows[0]) };
+}
+
+export async function recordStockNotifications(client: pg.PoolClient, vehicleId: string, label: string,
+  oldQuantity: number, newQuantity: number, threshold: number, eventKey: string) {
+  if (oldQuantity > threshold && newQuantity > 0 && newQuantity <= threshold) {
+    await client.query(
+      `INSERT INTO notifications (recipient_id, vehicle_id, type, event_key, message)
+       SELECT id, $1, 'low_stock', $2, $3 FROM users WHERE role = 'admin' AND is_active = true
+       ON CONFLICT (recipient_id, type, event_key) DO NOTHING`,
+      [vehicleId, eventKey, `${label} is low on stock`]
+    );
+  }
 }

@@ -2,6 +2,7 @@ import type pg from 'pg';
 import { getPool } from './db.js';
 import { AppError } from './errors.js';
 import { validateVehicleId } from './vehicle-service.js';
+import { recordStockNotifications } from './notification-service.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -40,8 +41,8 @@ export async function directPurchase(userId: string, vehicleId: string, input: u
       await client.query('COMMIT');
       return result;
     }
-    const vehicle = (await client.query<{ make: string; model: string; price: string; quantity: number; deleted_at: Date | null }>(
-      'SELECT make, model, price, quantity, deleted_at FROM vehicles WHERE id = $1 FOR UPDATE', [id]
+    const vehicle = (await client.query<{ make: string; model: string; price: string; quantity: number; low_stock_threshold: number; deleted_at: Date | null }>(
+      'SELECT make, model, price, quantity, low_stock_threshold, deleted_at FROM vehicles WHERE id = $1 FOR UPDATE', [id]
     )).rows[0];
     if (!vehicle || vehicle.deleted_at) throw new AppError(404, 'Vehicle not found');
     if (vehicle.quantity < 1) throw new AppError(409, 'Vehicle is out of stock');
@@ -52,6 +53,8 @@ export async function directPurchase(userId: string, vehicleId: string, input: u
     )).rows[0];
     await client.query('INSERT INTO purchase_items (purchase_id, vehicle_id, vehicle_label, unit_price) VALUES ($1, $2, $3, $4)',
       [purchase.id, id, `${vehicle.make} ${vehicle.model}`, vehicle.price]);
+    await recordStockNotifications(client, id, `${vehicle.make} ${vehicle.model}`,
+      vehicle.quantity, vehicle.quantity - 1, vehicle.low_stock_threshold, `purchase:${purchase.id}:${id}`);
     const result = await purchaseResult(client, purchase.id);
     await client.query('COMMIT');
     return result;
