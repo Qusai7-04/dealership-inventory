@@ -1,11 +1,15 @@
 import pg, { type PoolConfig, type QueryResult } from 'pg';
+import path from 'node:path';
 
 const { Pool } = pg;
 
 // Load .env automatically if available in runtime environment
 if (typeof process.loadEnvFile === 'function') {
   try {
-    process.loadEnvFile();
+    const repositoryRoot = path.basename(process.cwd()) === 'backend'
+      ? path.resolve(process.cwd(), '..')
+      : process.cwd();
+    process.loadEnvFile(path.join(repositoryRoot, '.env'));
   } catch {
     // Ignore when .env does not exist
   }
