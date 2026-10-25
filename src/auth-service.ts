@@ -91,6 +91,7 @@ export async function login(input: unknown): Promise<User | null> {
   const body = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   const email = normalizeEmail(body.email);
   const password = requiredPassword(body.password);
+  if (Buffer.byteLength(password, 'utf8') > 72) return null;
   const result = await query<UserRow>(
     `SELECT id, full_name, email, password_hash, role, is_verified, is_active
      FROM users WHERE lower(email) = $1`,
