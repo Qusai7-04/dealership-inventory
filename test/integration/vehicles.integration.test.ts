@@ -182,20 +182,22 @@ describe('Vehicle inventory integration', () => {
     const first = await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 2, requestId: firstKey });
     expect(first.status).toBe(200);
     expect(first.body.vehicle.quantity).toBe(3);
+    await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 1, requestId: crypto.randomUUID() }).expect(200);
     const replay = await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 2, requestId: firstKey });
     expect(replay.status).toBe(200);
     expect(replay.body.vehicle.quantity).toBe(3);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(4);
     expect((await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 3, requestId: firstKey })).status).toBe(409);
     const concurrentKey = crypto.randomUUID();
     const concurrentReplay = await Promise.all([1, 2].map(() =>
       request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity: 4, requestId: concurrentKey }).expect(200)
     ));
-    expect(concurrentReplay.every((response) => response.body.vehicle.quantity === 7)).toBe(true);
+    expect(concurrentReplay.every((response) => response.body.vehicle.quantity === 8)).toBe(true);
     for (const quantity of [0, -1, 1.5]) {
       expect((await request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity, requestId: crypto.randomUUID() })).status).toBe(400);
     }
     await Promise.all([2, 3].map((quantity) => request(app).post(`/api/vehicles/${id}/restock`).set(auth()).send({ quantity, requestId: crypto.randomUUID() }).expect(200)));
-    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(12);
+    expect((await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [id])).rows[0].quantity).toBe(13);
   });
 
   it('soft-deletes a vehicle and hides it from reads and further mutations', async () => {
