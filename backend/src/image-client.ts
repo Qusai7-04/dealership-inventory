@@ -1,0 +1,258 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type pg from 'pg';
+import { getPool } from './db.js';
+
+export interface VehicleImageRequest {
+  make: string;
+  model: string;
+  year?: number;
+  view?: string;
+  color?: string;
+  width?: number;
+  height?: number;
+  format?: string;
+}
+
+export interface ImageClientOptions {
+  apiKey?: string;
+  storageDir?: string;
+  baseUrl?: string;
+}
+
+export interface SeedVehicleImagesOptions {
+  pool?: pg.Pool;
+  imageClient?: CarImageClient;
+  yearMap?: Map<string, number>;
+  maxImages?: number;
+}
+
+export interface SeedImagesResult {
+  imagesInserted: number;
+  imagesSkipped: number;
+}
+
+const VIEW_DESCRIPTIONS: Record<string, string> = {
+  'front-3-4': 'front three-quarter view',
+  'front': 'front view',
+  'side': 'side view',
+  'rear-3-4': 'rear three-quarter view',
+  'rear': 'rear view',
+  'front-3-4-right': 'front three-quarter right view',
+  'side-right': 'side right view',
+  'rear-3-4-right': 'rear three-quarter right view',
+};
+
+export function buildVehicleAltText(req: {
+  make: string;
+  model: string;
+  year?: number;
+  view?: string;
+}): string {
+  const parts: string[] = [];
+  if (req.year) {
+    parts.push(String(req.year));
+  }
+  parts.push(req.make.trim());
+  parts.push(req.model.trim());
+
+  const prefix = parts.join(' ');
+  if (req.view && VIEW_DESCRIPTIONS[req.view]) {
+    return `${prefix}, ${VIEW_DESCRIPTIONS[req.view]}`;
+  }
+  return prefix;
+}
+
+export function sanitizeImageFilename(make: string, model: string, year?: number, ext = 'webp'): string {
+  const clean = `${make}_${model}_${year || 'latest'}`
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .replace(/_+/g, '_');
+  return `${clean}.${ext}`;
+}
+
+export class CarImageClient {
+  private readonly apiKey: string;
+  private readonly storageDir: string;
+  private readonly baseUrl: string;
+
+  constructor(options: ImageClientOptions = {}) {
+    const rawKey = options.apiKey ?? process.env.CAR_IMAGE_API_KEY;
+    if (!rawKey || rawKey.trim() === '') {
+      throw new Error('CAR_IMAGE_API_KEY is required to initialize CarImageClient');
+    }
+    this.apiKey = rawKey.trim();
+    this.baseUrl = options.baseUrl ?? 'https://carimage.dev/api/v1';
+
+    if (options.storageDir) {
+      this.storageDir = options.storageDir;
+    } else {
+      const candidates = [
+        path.resolve(process.cwd(), 'backend/public/images/vehicles'),
+        path.resolve(process.cwd(), 'public/images/vehicles'),
+      ];
+      this.storageDir = fs.existsSync(path.resolve(process.cwd(), 'backend'))
+        ? candidates[0]
+        : candidates[1];
+    }
+
+    if (!fs.existsSync(this.storageDir)) {
+      fs.mkdirSync(this.storageDir, { recursive: true });
+    }
+  }
+
+  async fetchAndCacheImage(
+    req: VehicleImageRequest
+  ): Promise<{ url: string; altText: string } | null> {
+    const format = req.format ?? 'webp';
+    const filename = sanitizeImageFilename(req.make, req.model, req.year, format);
+    const localFilePath = path.join(this.storageDir, filename);
+    const publicUrl = `/images/vehicles/${filename}`;
+    const altText = buildVehicleAltText(req);
+
+    // 1. Check local cache first to avoid spending credits
+    if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).size > 0) {
+      return { url: publicUrl, altText };
+    }
+
+    // 2. Prepare request URL
+    const params = new URLSearchParams({
+      make: req.make.trim(),
+      model: req.model.trim(),
+      view: req.view ?? 'front-3-4',
+      format,
+      w: String(req.width ?? 800),
+      h: String(req.height ?? 600),
+      trim: '1',
+    });
+
+    if (req.year) {
+      params.set('year', String(req.year));
+    }
+    if (req.color) {
+      params.set('color', req.color);
+    }
+
+    const targetUrl = `${this.baseUrl}/images/car?${params.toString()}`;
+
+    // 3. Dispatch request with Bearer authorization header
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        Accept: 'image/webp, image/png, image/jpeg, */*',
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (response.status === 401) {
+      throw new Error('Unauthorized: Invalid or expired CAR_IMAGE_API_KEY');
+    }
+
+    if (response.status === 402) {
+      throw new Error('Payment Required: Credits exhausted on carimage.dev account');
+    }
+
+    if (response.status === 429) {
+      throw new Error('Too Many Requests: Rate limit exceeded on carimage.dev');
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`carimage.dev request failed with status ${response.status}: ${errText}`);
+    }
+
+    // 4. Save image bytes locally
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(localFilePath, buffer);
+
+    return { url: publicUrl, altText };
+  }
+}
+
+export async function seedVehicleImages(
+  options: SeedVehicleImagesOptions = {}
+): Promise<SeedImagesResult> {
+  const pool = options.pool ?? getPool();
+  const maxImages = options.maxImages ?? 30;
+
+  let imageClient = options.imageClient;
+  if (!imageClient) {
+    imageClient = new CarImageClient();
+  }
+
+  // Load year map if not passed
+  let yearMap = options.yearMap;
+  if (!yearMap) {
+    yearMap = new Map<string, number>();
+    const seedCandidates = [
+      path.resolve(process.cwd(), 'data/vehicles.seed.json'),
+      path.resolve(process.cwd(), 'backend/data/vehicles.seed.json'),
+    ];
+    for (const cand of seedCandidates) {
+      if (fs.existsSync(cand)) {
+        try {
+          const items: any[] = JSON.parse(fs.readFileSync(cand, 'utf8'));
+          for (const item of items) {
+            if (item.make && item.model && item.year) {
+              yearMap.set(`${item.make}:${item.model}`.toLowerCase(), Number(item.year));
+            }
+          }
+        } catch {
+          // ignore
+        }
+        break;
+      }
+    }
+  }
+
+  // Fetch vehicles that do not currently have a cover image (display_order = 0)
+  const unseeded = await pool.query<{ id: string; make: string; model: string }>(
+    `SELECT v.id, v.make, v.model
+     FROM vehicles v
+     LEFT JOIN vehicle_images img ON img.vehicle_id = v.id AND img.display_order = 0
+     WHERE v.deleted_at IS NULL AND img.id IS NULL
+     ORDER BY v.make ASC, v.model ASC
+     LIMIT $1`,
+    [maxImages]
+  );
+
+  let imagesInserted = 0;
+  let imagesSkipped = 0;
+
+  for (const veh of unseeded.rows) {
+    const key = `${veh.make}:${veh.model}`.toLowerCase();
+    const year = yearMap.get(key) ?? 2024;
+
+    try {
+      const result = await imageClient.fetchAndCacheImage({
+        make: veh.make,
+        model: veh.model,
+        year,
+        view: 'front-3-4',
+      });
+
+      if (!result) {
+        imagesSkipped++;
+        continue;
+      }
+
+      await pool.query(
+        `INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (vehicle_id, display_order) DO UPDATE
+         SET url = EXCLUDED.url, alt_text = EXCLUDED.alt_text`,
+        [veh.id, result.url, result.altText, 0]
+      );
+      imagesInserted++;
+    } catch (err: any) {
+      console.warn(`Could not seed image for ${veh.make} ${veh.model}: ${err.message}`);
+      imagesSkipped++;
+    }
+  }
+
+  return { imagesInserted, imagesSkipped };
+}
