@@ -572,6 +572,8 @@ git diff --check
 
 ## My AI Usage
 
-Codex was used to review the assignment and database design, draft and revise TypeScript/SQL implementation, write Vitest and Supertest tests, run PostgreSQL integration checks, diagnose failures, and document the verified behavior. The original feature commits combined tests and implementation; the later remediation commits record truthful test-first red and green steps without rewriting that history. The project owner still needs to add their personal reflection before submission.
+Codex and Gemini were used collaboratively throughout this project to review assignment requirements and PostgreSQL schema designs, draft and revise TypeScript and SQL implementations, develop Vitest and Supertest suites, run PostgreSQL integration checks, diagnose test failures, perform the final production-readiness audit, and document the verified system behavior.
 
-[PROMPTS.md](PROMPTS.md) preserves exact user prompts recovered from accessible Codex history. It does not yet contain the raw, unedited AI response logs or public chat links required by the Kata; the project owner must add those original records. Every AI-assisted commit uses the `Co-authored-by:` trailer.
+The original feature commits combined tests and implementation; subsequent remediation and audit commits record truthful test-first red and green steps without rewriting repository history. The project owner still needs to add their personal reflection before submission.
+
+[PROMPTS.md](PROMPTS.md) preserves exact user prompts recovered from accessible AI interaction history. It does not yet contain the raw, unedited AI response logs or public chat links required by the Kata; the project owner must add those original records. Every AI-assisted commit includes the required `Co-authored-by:` trailers.
