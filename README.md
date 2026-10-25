@@ -1,6 +1,6 @@
 # Car Dealership Inventory System
 
-Planning and database design for the Incubyte full-stack kata. The intended product is a shared, login-protected vehicle catalogue: users browse, search, save, and buy stock; admins maintain listings and inventory. This repository currently contains **design documents only**. There is no application, schema migration, or test suite yet.
+Planning and database design for the Incubyte full-stack kata. The intended product is a shared, login-protected vehicle catalogue: users browse, search, save, and buy stock; admins maintain listings and inventory. A minimal TypeScript/Express backend now exposes `GET /health`; the application schema and product endpoints are not implemented yet.
 
 ## Product and assignment scope
 
@@ -27,7 +27,7 @@ The brief describes vehicle operations as protected, explicitly limits deletion 
 | `POST /api/vehicles/:id/purchase` | Authenticated | Buy one unit immediately |
 | `POST /api/vehicles/:id/restock` | Admin | Add positive stock and record receipt |
 
-The intended stack is a backend in one assignment-supported framework (Node.js/TypeScript, Python, or Ruby), **PostgreSQL** for persistence, and React with HTML5, CSS3, and Tailwind CSS for the SPA. The backend framework and data-access library are not selected yet; database constraints and transaction behavior below apply whichever is chosen. The implementation should keep routes/controllers, business logic, and database access separate.
+The selected backend stack is Node.js/TypeScript with Express and `pg`, **PostgreSQL** for persistence, and React with HTML5, CSS3, and Tailwind CSS for the planned SPA. The implementation should keep routes/controllers, business logic, and database access separate.
 
 ## Database overview
 
@@ -185,7 +185,9 @@ Cart additions and favourites never change stock. Cart checkout is all-or-nothin
 3. When backend configuration exists, put a connection string such as `DATABASE_URL=postgresql://dealership_app:<choose-a-local-password>@localhost:5432/dealership_inventory` in a local, uncommitted environment file or secret store. URL-encode special password characters. Never commit credentials.
 4. Verify the new database with `psql -h localhost -U dealership_app -d dealership_inventory -c "SELECT current_database(), current_user;"`. PostgreSQL will prompt for the password. The application schema is **not present yet**. When migrations are implemented, their actual command and migration path will be documented here; then verify with `psql -h localhost -U dealership_app -d dealership_inventory -c "\dt"` and inspect constraints using `\d+ table_name` inside `psql`.
 
-There are no backend/frontend install, run, test, or migration commands yet. Add those and screenshots/test results once they exist; do not treat this setup as a running application.
+## Backend foundation
+
+Run `npm install`, then `npm run dev` for development or `npm run build` and `npm start` for the compiled server. The default port is 3000; set the `PORT` environment variable to change it. `GET /health` returns `{"status":"ok"}` and does not require PostgreSQL. Run `npm test` for the health endpoint test. PostgreSQL migrations and database connection setup will be added with the first schema change; there is no migration command yet.
 
 ## My AI Usage
 
