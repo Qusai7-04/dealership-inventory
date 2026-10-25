@@ -28,7 +28,7 @@ describe('authentication flow', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     expect(await screen.findByRole('heading', { name: /the floor/i })).toBeInTheDocument();
-    expect(screen.getByText(/no vehicles match/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no vehicles match/i)).toBeInTheDocument();
     expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/login');
     expect(sessionStorage.getItem('creaseline.session')).toBe('token');
     fetchMock.mockRestore();

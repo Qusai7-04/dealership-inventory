@@ -30,11 +30,11 @@ describe('API client', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Authentication required' }), { status: 401 }));
     const client = createApiClient({ baseUrl: '', getToken: () => 'token', onUnauthorized: expired, fetcher });
 
-    await expect(client.post('/api/cart/checkout', {})).rejects.toMatchObject<ApiError>({
+    await expect(client.post('/api/cart/checkout', {})).rejects.toMatchObject({
       status: 409,
       message: 'Price changed',
     });
-    await expect(client.get('/api/auth/me')).rejects.toMatchObject<ApiError>({ status: 401 });
+    await expect(client.get('/api/auth/me')).rejects.toMatchObject({ status: 401 });
     expect(expired).toHaveBeenCalledOnce();
   });
 });
