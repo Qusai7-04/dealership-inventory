@@ -91,4 +91,23 @@ describe('Admin vehicle live image generation route', () => {
     expect(res.status).toBe(200);
     expect(res.body.image.url).toBe('/images/vehicles/existing_toyota.webp');
   });
+
+  it('rejects live image generation with 400 when running in serverless environment (VERCEL=1)', async () => {
+    const origVercel = process.env.VERCEL;
+    process.env.VERCEL = '1';
+    try {
+      const res = await request(app)
+        .post(`/api/vehicles/${vehicleWithoutImageId}/generate-image`)
+        .set(auth(adminToken));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/disabled in the serverless deployment/i);
+    } finally {
+      if (origVercel === undefined) {
+        delete process.env.VERCEL;
+      } else {
+        process.env.VERCEL = origVercel;
+      }
+    }
+  });
 });
+
