@@ -23,9 +23,23 @@ export function getPoolConfig(): PoolConfig {
     : process.env.DATABASE_URL;
 
   if (connectionString) {
-    return {
+    const isNeonOrCloud =
+      connectionString.includes('sslmode=require') ||
+      connectionString.includes('neon.tech') ||
+      process.env.PGSSLMODE === 'require';
+
+    const poolConfig: PoolConfig = {
       connectionString,
+      max: Number(process.env.DB_POOL_MAX ?? (process.env.VERCEL ? 3 : 10)),
+      idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS ?? 30000),
+      connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS ?? 5000),
     };
+
+    if (isNeonOrCloud) {
+      poolConfig.ssl = { rejectUnauthorized: false };
+    }
+
+    return poolConfig;
   }
 
   return {
@@ -34,6 +48,9 @@ export function getPoolConfig(): PoolConfig {
     user: process.env.PGUSER ?? 'dealership_app',
     password: process.env.PGPASSWORD,
     database: process.env.PGDATABASE ?? 'dealership_inventory',
+    max: Number(process.env.DB_POOL_MAX ?? (process.env.VERCEL ? 3 : 10)),
+    idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS ?? 30000),
+    connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS ?? 5000),
   };
 }
 
