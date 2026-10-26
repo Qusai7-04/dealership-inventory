@@ -333,6 +333,13 @@ export async function generateVehicleImage(id: string) {
     };
   }
 
+  if (process.env.VERCEL || process.env.DISABLE_LIVE_IMAGE_GENERATION === 'true') {
+    throw new AppError(
+      400,
+      'Live image generation is disabled in the serverless deployment because runtime filesystem storage is ephemeral. Pre-cached showroom vehicle images are provided in the catalogue.'
+    );
+  }
+
   if (inProgressImageGenerations.has(validId)) {
     throw new AppError(409, 'Image generation already in progress for this vehicle');
   }
