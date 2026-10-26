@@ -54,4 +54,26 @@ describe('CORS and Preflight Handling', () => {
     expect(deniedResponse.status).toBe(200);
     expect(deniedResponse.headers['access-control-allow-origin']).toBeUndefined();
   });
+
+  it('supports wildcard pattern matching for Vercel preview domains in CORS_ORIGIN', async () => {
+    process.env.CORS_ORIGIN = 'https://*.vercel.app, https://creaseline.example.com';
+
+    const previewResponse = await request(app)
+      .get('/health')
+      .set('Origin', 'https://dealership-inventory-git-preview-qusai.vercel.app');
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewResponse.headers['access-control-allow-origin']).toBe(
+      'https://dealership-inventory-git-preview-qusai.vercel.app'
+    );
+    expect(previewResponse.headers['vary']).toContain('Origin');
+
+    const deniedResponse = await request(app)
+      .get('/health')
+      .set('Origin', 'https://malicious-vercel.app.attacker.com');
+
+    expect(deniedResponse.status).toBe(200);
+    expect(deniedResponse.headers['access-control-allow-origin']).toBeUndefined();
+  });
 });
+
