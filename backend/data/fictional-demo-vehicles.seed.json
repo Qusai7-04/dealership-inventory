@@ -1,0 +1,110 @@
+[
+  {
+    "make": "Apex Motors",
+    "model": "Phantom GT",
+    "category": "Sedan",
+    "price": 3850000,
+    "year": 2025,
+    "opening_quantity": 5,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Horizon Automotive",
+    "model": "Vanguard SUV",
+    "category": "SUV",
+    "price": 4250000,
+    "year": 2025,
+    "opening_quantity": 4,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Nebula Dynamics",
+    "model": "Starlight Coupe",
+    "category": "Coupe",
+    "price": 5400000,
+    "year": 2025,
+    "opening_quantity": 3,
+    "low_stock_threshold": 1
+  },
+  {
+    "make": "Creaseline Heritage",
+    "model": "Roadster 1968",
+    "category": "Convertible",
+    "price": 7900000,
+    "year": 2024,
+    "opening_quantity": 1,
+    "low_stock_threshold": 1
+  },
+  {
+    "make": "Solaris Mobility",
+    "model": "Solstice EV",
+    "category": "Hatchback",
+    "price": 2200000,
+    "year": 2025,
+    "opening_quantity": 6,
+    "low_stock_threshold": 3
+  },
+  {
+    "make": "Titan Power",
+    "model": "Atlas Hauler",
+    "category": "Truck",
+    "price": 4100000,
+    "year": 2025,
+    "opening_quantity": 3,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Zephyr Design",
+    "model": "Aeroflow Minivan",
+    "category": "MPV",
+    "price": 3100000,
+    "year": 2025,
+    "opening_quantity": 4,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Meridian Luxury",
+    "model": "Grand Tourer",
+    "category": "Sedan",
+    "price": 4900000,
+    "year": 2025,
+    "opening_quantity": 0,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Pulse Urban",
+    "model": "Echo City",
+    "category": "Hatchback",
+    "price": 1650000,
+    "year": 2025,
+    "opening_quantity": 2,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Hyperion Speed",
+    "model": "Spectre Turbo",
+    "category": "Coupe",
+    "price": 6300000,
+    "year": 2025,
+    "opening_quantity": 3,
+    "low_stock_threshold": 1
+  },
+  {
+    "make": "Vortex Electric",
+    "model": "Surge Cross",
+    "category": "SUV",
+    "price": 3600000,
+    "year": 2025,
+    "opening_quantity": 5,
+    "low_stock_threshold": 2
+  },
+  {
+    "make": "Aurora Craft",
+    "model": "Borealis Spyder",
+    "category": "Convertible",
+    "price": 7200000,
+    "year": 2024,
+    "opening_quantity": 2,
+    "low_stock_threshold": 1
+  }
+]
