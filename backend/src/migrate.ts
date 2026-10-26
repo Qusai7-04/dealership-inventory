@@ -1,8 +1,54 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import type pg from 'pg';
-import { getPool, closePool } from './db.js';
+import pg, { type PoolConfig } from 'pg';
+import { getPool, getPoolConfig, closePool } from './db.js';
+
+const { Pool } = pg;
+
+export function sanitizeDbTarget(connectionString?: string): string {
+  if (!connectionString) {
+    return `host: ${process.env.PGHOST ?? 'localhost'}, port: ${process.env.PGPORT ?? 5432}, database: ${process.env.PGDATABASE ?? 'dealership_inventory'}`;
+  }
+  try {
+    const parsed = new URL(connectionString);
+    const port = parsed.port || '5432';
+    const db = parsed.pathname.replace(/^\//, '') || 'default';
+    return `host: ${parsed.hostname}, port: ${port}, database: ${db}`;
+  } catch {
+    return 'custom connection target';
+  }
+}
+
+export function getMigrationPoolConfig(): PoolConfig {
+  const connectionString =
+    process.env.MIGRATION_DATABASE_URL ||
+    process.env.DIRECT_URL ||
+    (process.env.NODE_ENV === 'test'
+      ? process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL
+      : process.env.DATABASE_URL);
+
+  if (connectionString) {
+    const isNeonOrCloud =
+      connectionString.includes('sslmode=require') ||
+      connectionString.includes('neon.tech') ||
+      process.env.PGSSLMODE === 'require';
+
+    const poolConfig: PoolConfig = {
+      connectionString,
+      max: 1,
+      connectionTimeoutMillis: 10000,
+    };
+
+    if (isNeonOrCloud) {
+      poolConfig.ssl = { rejectUnauthorized: false };
+    }
+
+    return poolConfig;
+  }
+
+  return getPoolConfig();
+}
 
 export function resolveMigrationsDir(explicitDir?: string): string {
   if (explicitDir) return explicitDir;
@@ -88,7 +134,11 @@ const isDirectExecution =
     path.resolve(process.argv[1]).toLowerCase().endsWith('migrate.js'));
 
 if (isDirectExecution) {
-  runMigrations()
+  const config = getMigrationPoolConfig();
+  console.log(`Target database for migrations: ${sanitizeDbTarget(config.connectionString)}`);
+  const migrationPool = new Pool(config);
+
+  runMigrations(migrationPool)
     .then((applied) => {
       if (applied.length === 0) {
         console.log('Database schema is already up to date. No migrations to apply.');
@@ -103,7 +153,8 @@ if (isDirectExecution) {
       console.error('Migration failed:', err.message);
       process.exitCode = 1;
     })
-    .finally(() => {
-      closePool();
+    .finally(async () => {
+      await migrationPool.end();
+      await closePool();
     });
 }
