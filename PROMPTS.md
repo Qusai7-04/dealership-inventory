@@ -2180,3 +2180,35 @@ The actual tests and Docker commands executed.
 Whether docker compose up --build starts all three services without extra manual steps.
 Any remaining blockers and the precise next actions needed.
 Do the diagnosis and implementation in the current task. Do not just give me a list of commands to run if you can safely run the diagnostic commands yourself. Ask before disruptive system operations or anything that might risk existing database data. Never claim success without the corresponding command output.
+
+### Session: Prepare Creaseline for Vercel Hobby and Neon PostgreSQL (2026-10-26)
+
+Prepare my existing Creaseline Car Dealership Inventory System for a free Vercel Hobby deployment with Neon Free PostgreSQL. Do not use Render or deploy anything yet.
+
+The repository is at `C:\PROJECTS\Dealership Inventory`. It contains a React/TypeScript/Vite frontend in `frontend`, an Express/TypeScript backend in `backend`, root npm workspaces, PostgreSQL migrations, cached vehicle images and a working local Docker Compose setup. Local Docker currently runs the full app with `docker compose up --build`. Preserve that workflow; do not break local development.
+
+I want two Vercel projects linked to the same GitHub repository: one for the frontend and one for the backend. Use Neon Free as the hosted PostgreSQL database. The project is a personal non-commercial portfolio demo, not a commercial dealership system.
+
+First inspect the current repository, AGENTS.md, package files, workspace lockfile, existing API application and server entry point, migration scripts, CORS, image-serving code, image cache, Vercel and Render configurations, Docker Compose and tests. Verify all commands and paths against the real code before changing them.
+
+Add and verify the smallest set of changes needed for Vercel compatibility. The Express backend must work under Vercel's serverless function model, preserve all existing API routes and authentication, and handle pooled PostgreSQL connections safely. Ensure database connections work efficiently within serverless execution and transactions remain intact. Keep the local server startup path compatible with Docker and ordinary local development.
+
+Configure the monorepo for two Vercel projects without breaking npm workspaces or the root lockfile. Provide exact project root settings, install/build commands, output directories and any necessary vercel.json files. If the existing package layout cannot safely support separate project roots, implement a clean, testable alternative rather than guessing dashboard settings.
+
+The frontend must use `VITE_API_BASE_URL` to contact the deployed backend. Ensure every API request, authentication flow, login role check, error handler and CORS configuration works across separate Vercel origins. Document the exact environment-variable names and the correct way to update and rebuild the frontend when the backend URL changes.
+
+Vercel Express deployments do not serve static assets through express.static. Ensure the cached vehicle images are served as actual static deployment assets in the correct public directory, and that their URLs work across the frontend/backend origins. Check every image file, content type and route. Use the existing valid cached images and local fallback illustrations. Do not make a wrong image appear as the exact vehicle.
+
+Vercel functions cannot permanently store image-generated files in their runtime filesystem. Do not let the current CarImage generation endpoint report success if the generated asset cannot be persistently stored. Disable live image generation in the deployed demo unless a genuinely durable, affordable storage integration has been configured. Preserve the current local image-generation ability when practical. Never expose CAR_IMAGE_API_KEY in the frontend, a VITE variable, browser request or public build. Do not call CarImage.dev or consume any credits during this task.
+
+Create or update deployment configuration and documentation so the process is reproducible. Ensure the migration runner can run safely against a separate Neon database without pointing at the local development database accidentally. Keep migrations separate from seeding. Do not seed the original Car Data India catalogue unless its redistribution rights are verified. Provide a deterministic fictional demo catalogue if needed, but never overwrite inventory or purchase records automatically.
+
+Keep secrets out of Git, never print their values, preserve local database data, do not change the local Docker database URL, and do not run destructive commands. Do not copy `.env` into a deployment or image.
+
+Follow AGENTS.md and the existing TDD Kata conventions. For genuine defects, add the RED regression test, commit RED separately, implement the minimal GREEN fix and commit GREEN separately. Preserve all existing history. Do not squash, amend, reset, rebase, force-push, push to GitHub or deploy.
+
+Run the complete relevant backend and frontend tests, production builds, dependency audit, migration safety checks, image asset checks and `git diff --check`. Report the actual commands and results. If any test or deployment configuration cannot be verified locally, explain why.
+
+Append this prompt verbatim to PROMPTS.md if it is not already included. At the end, give me the exact step-by-step Vercel dashboard and Neon setup instructions, actual project roots, build commands, output directories, required environment variable names, migration and safe fictional demo seeding steps, URL/CORS configuration, and final smoke-test checklist.
+
+Do not state that a Vercel deployment has been tested until it has actually been deployed and verified. Finish with a clean, reviewed working tree and make no remote deployment changes.
