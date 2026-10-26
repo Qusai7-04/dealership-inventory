@@ -126,4 +126,38 @@ describe('Migration Runner', () => {
       spy.mockRestore();
     }
   });
+
+  it('sanitizeDbTarget safely displays host and database without leaking passwords', async () => {
+    const { sanitizeDbTarget } = await import('../src/migrate.js');
+    const secretNeonUrl =
+      'postgresql://neon_admin:mySuperSecretPass123!@ep-sparkling-base-98765.us-east-2.aws.neon.tech:5432/neondb?sslmode=require';
+
+    const sanitized = sanitizeDbTarget(secretNeonUrl);
+    expect(sanitized).toBe('host: ep-sparkling-base-98765.us-east-2.aws.neon.tech, port: 5432, database: neondb');
+    expect(sanitized).not.toContain('mySuperSecretPass123!');
+    expect(sanitized).not.toContain('neon_admin');
+  });
+
+  it('getMigrationPoolConfig prioritizes MIGRATION_DATABASE_URL and DIRECT_URL', async () => {
+    const { getMigrationPoolConfig } = await import('../src/migrate.js');
+    const origMigrateUrl = process.env.MIGRATION_DATABASE_URL;
+    const origDirectUrl = process.env.DIRECT_URL;
+    const origDbUrl = process.env.DATABASE_URL;
+
+    try {
+      process.env.DATABASE_URL = 'postgres://dealership_app:secret@localhost:5432/dealership_inventory';
+      process.env.MIGRATION_DATABASE_URL =
+        'postgresql://neon_admin:pass@ep-sparkling-base-98765.us-east-2.aws.neon.tech:5432/neondb?sslmode=require';
+
+      const config = getMigrationPoolConfig();
+      expect(config.connectionString).toBe(process.env.MIGRATION_DATABASE_URL);
+      expect(config.ssl).toEqual({ rejectUnauthorized: false });
+      expect(config.max).toBe(1);
+    } finally {
+      if (origMigrateUrl === undefined) delete process.env.MIGRATION_DATABASE_URL; else process.env.MIGRATION_DATABASE_URL = origMigrateUrl;
+      if (origDirectUrl === undefined) delete process.env.DIRECT_URL; else process.env.DIRECT_URL = origDirectUrl;
+      process.env.DATABASE_URL = origDbUrl;
+    }
+  });
 });
+
