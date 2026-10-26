@@ -33,7 +33,10 @@ describe('authentication flow', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         vehicles: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 },
       }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ categories: [] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ categories: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        summary: { activeStockLines: 0, inStockLines: 0, lowStockLines: 0, outOfStockLines: 0, totalUnits: 0 },
+      }), { status: 200 }));
 
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/sign-in']}><App /></MemoryRouter>);
@@ -42,7 +45,7 @@ describe('authentication flow', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     expect(await screen.findByRole('heading', { name: /the floor/i })).toBeInTheDocument();
-    expect(await screen.findByText(/no vehicles match/i)).toBeInTheDocument();
+    expect(await screen.findByText(/the catalogue is empty/i)).toBeInTheDocument();
     expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/login');
     expect(sessionStorage.getItem('creaseline.session')).toBe('token');
     fetchMock.mockRestore();
