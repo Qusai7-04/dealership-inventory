@@ -600,6 +600,199 @@ After deployment, perform these manual smoke checks on the live site:
 
 > **Production Recommendation:** A reliable 24/7 production deployment requires at least the Starter Web Service and Starter PostgreSQL plan ($14/month total). Free tier is suitable only for short-lived personal testing or demo review.
 
+## Free Vercel Hobby & Neon Free PostgreSQL Deployment
+
+Creaseline can be hosted completely free as a personal, non-commercial portfolio demonstration using two Vercel projects linked to this monorepo and a serverless Neon Free PostgreSQL database.
+
+### Architecture Overview
+
+```text
+┌─────────────────────────────────┐           ┌─────────────────────────────────┐
+│     Vercel Frontend Project     │  HTTPS    │     Vercel Backend Project      │
+│  Root: frontend                 ├──────────►│  Root: backend                  │
+│  Preset: Vite (dist)            │  REST API │  Preset: Other (Serverless)     │
+│  Static CDN: /images/vehicles/* │           │  Static CDN: /images/vehicles/* │
+└─────────────────────────────────┘           └────────────────┬────────────────┘
+                                                               │ Pooled TLS
+                                                               │ (PgBouncer)
+                                                               ▼
+                                              ┌─────────────────────────────────┐
+                                              │      Neon Free PostgreSQL       │
+                                              │  ep-*-pooler.neon.tech (App)    │
+                                              │  ep-*.neon.tech (Migrations)    │
+                                              └─────────────────────────────────┘
+```
+
+- **Frontend Origin:** `https://creaseline-frontend.vercel.app` (example)
+- **Backend Origin:** `https://creaseline-backend.vercel.app` (example)
+- **Database:** Serverless PostgreSQL hosted on Neon Free Tier with auto-suspend and TLS encryption.
+
+---
+
+### Step 1: Create Neon Free PostgreSQL Database
+
+1. Sign up or log in at [console.neon.tech](https://console.neon.tech).
+2. Click **Create Project**:
+   - **Project Name:** `creaseline-demo`
+   - **Postgres Version:** 16 (or latest)
+   - **Region:** Select the region closest to your expected viewers (e.g., `AWS us-east-2`).
+3. In the Neon Dashboard under **Connection Details**:
+   - Locate the **Connection string** selector.
+   - Select **Pooled connection** (includes `-pooler` in host) for application runtime queries:
+     ```text
+     postgresql://[user]:[password]@ep-xxxx-pooler.[region].aws.neon.tech/neondb?sslmode=require
+     ```
+   - Select **Direct connection** (without `-pooler`) for running schema migrations:
+     ```text
+     postgresql://[user]:[password]@ep-xxxx.[region].aws.neon.tech/neondb?sslmode=require
+     ```
+
+---
+
+### Step 2: Apply Migrations to Neon (Safe Direct Connection)
+
+Run the reproducible migration runner from your local machine pointing directly to your Neon database. The runner displays the sanitized target host and database so you never migrate the wrong database accidentally:
+
+```powershell
+$env:MIGRATION_DATABASE_URL = "postgresql://[user]:[password]@ep-xxxx.[region].aws.neon.tech/neondb?sslmode=require"
+npm run migrate --workspace backend
+```
+
+*Expected output:*
+```text
+Target database for migrations: host: ep-xxxx.[region].aws.neon.tech, port: 5432, database: neondb
+Successfully applied 6 migration(s):
+  - 001_create_users_categories_vehicles.sql
+  - 002_create_stock_receipts.sql
+  - 003_add_stock_receipt_result_quantity.sql
+  - 004_create_carts_and_purchases.sql
+  - 005_create_favourites_and_notifications.sql
+  - 006_create_vehicle_images.sql
+```
+
+---
+
+### Step 3: Create Admin Account on Neon
+
+Create the primary administrator account on the Neon database:
+
+```powershell
+$env:DATABASE_URL = "postgresql://[user]:[password]@ep-xxxx-pooler.[region].aws.neon.tech/neondb?sslmode=require"
+$env:ADMIN_EMAIL = "admin@creaseline.demo"
+$env:ADMIN_PASSWORD = "StrongDemoAdminPassword123!"
+npm run db:create-admin --workspace backend
+```
+
+---
+
+### Step 4: Seed Catalogue and Pre-Cached Images
+
+Choose either the deterministic fictional demo catalogue (copyright-safe) or the showroom catalogue:
+
+**Option A (Recommended for Public Demos — 100% Fictional Demo Vehicles):**
+```powershell
+$env:DATABASE_URL = "postgresql://[user]:[password]@ep-xxxx-pooler.[region].aws.neon.tech/neondb?sslmode=require"
+npm run db:seed:demo --workspace backend
+```
+
+**Option B (Showroom Catalogue with 35 Vehicles):**
+```powershell
+$env:DATABASE_URL = "postgresql://[user]:[password]@ep-xxxx-pooler.[region].aws.neon.tech/neondb?sslmode=require"
+npm run db:seed:vehicles --workspace backend
+```
+
+**Associate Pre-Cached Vehicle Images (Zero external API calls, Zero credits consumed):**
+```powershell
+npm run db:seed:cached-images --workspace backend
+```
+
+*Verification:*
+```powershell
+npm run db:audit-images --workspace backend
+```
+
+---
+
+### Step 5: Configure Backend Vercel Project
+
+1. In the [Vercel Dashboard](https://vercel.com/dashboard), click **Add New...** -> **Project**.
+2. Select your `dealership-inventory` GitHub repository.
+3. Configure **Project Settings**:
+   - **Project Name:** `creaseline-backend`
+   - **Framework Preset:** `Other`
+   - **Root Directory:** Click Edit and select `backend`
+   - **Build Command:** `npm run build` (runs `tsc` producing `dist`)
+   - **Output Directory:** Leave default/empty (Serverless function project)
+   - **Install Command:** `npm install` (default)
+4. Add **Environment Variables** (under Settings -> Environment Variables):
+
+| Variable Name | Value Description | Example Value |
+|---|---|---|
+| `DATABASE_URL` | Neon Pooled connection string with `-pooler` | `postgresql://user:pass@ep-*-pooler.*.aws.neon.tech/neondb?sslmode=require` |
+| `JWT_SECRET` | 32+ character cryptographically secure secret | `a-64-character-random-hex-string-for-jwt-signing` |
+| `JWT_EXPIRES_IN_SECONDS` | Token expiry in seconds | `3600` |
+| `CORS_ORIGIN` | Allowed frontend origins (supports wildcards) | `https://creaseline-frontend.vercel.app, https://*.vercel.app` |
+| `NODE_ENV` | Environment mode | `production` |
+| `DB_POOL_MAX` | Max pool connections per lambda instance | `3` |
+
+5. Click **Deploy**. Note the assigned deployment URL (e.g. `https://creaseline-backend.vercel.app`).
+6. Test backend health:
+   - Visit `https://creaseline-backend.vercel.app/health` -> `{"status":"ok"}`
+   - Visit `https://creaseline-backend.vercel.app/health/db` -> `{"status":"ok","database":"connected"}`
+
+---
+
+### Step 6: Configure Frontend Vercel Project
+
+1. In the Vercel Dashboard, click **Add New...** -> **Project**.
+2. Select the **same** `dealership-inventory` GitHub repository.
+3. Configure **Project Settings**:
+   - **Project Name:** `creaseline-frontend`
+   - **Framework Preset:** `Vite`
+   - **Root Directory:** Click Edit and select `frontend`
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+   - **Install Command:** `npm install` (default)
+4. Add **Environment Variable**:
+
+| Variable Name | Value Description | Example Value |
+|---|---|---|
+| `VITE_API_BASE_URL` | Backend Vercel production domain (no trailing slash) | `https://creaseline-backend.vercel.app` |
+
+5. Click **Deploy**.
+6. When the backend URL changes or when deploying preview branches, update `VITE_API_BASE_URL` and click **Redeploy** in the Vercel Dashboard so Vite bakes the new API origin into the production client bundle.
+
+---
+
+### Static Asset Serving and CDN Caching
+
+- Vehicle images are pre-cached `.webp` files located in `frontend/public/images/vehicles/` and `backend/public/images/vehicles/`.
+- During frontend build, Vite copies `frontend/public/*` into `frontend/dist/*`.
+- Vercel's global CDN serves vehicle images directly from the edge cache with Content-Type `image/webp`.
+- If an image fails to load or is unmapped, the frontend gracefully displays the neutral architectural silhouette (`ARCHIVE SPECIMEN`). It never substitutes an incorrect vehicle image.
+
+---
+
+### Serverless Storage & Live Image Generation Notice
+
+- Vercel Serverless Functions execute on ephemeral, read-only/temporary filesystems (`/tmp`). Files written at runtime disappear when lambda instances recycle.
+- The `POST /api/vehicles/:id/generate-image` endpoint automatically detects serverless environments (`VERCEL=1`) and rejects live generation attempts with HTTP 400 rather than reporting false success.
+- `CAR_IMAGE_API_KEY` is never exposed to the frontend, browser bundles, or public repository code.
+
+---
+
+### Post-Deployment Smoke-Test Checklist
+
+- [ ] `/health` returns `{ "status": "ok" }`.
+- [ ] `/health/db` returns `{ "status": "ok", "database": "connected" }`.
+- [ ] Visiting `https://creaseline-frontend.vercel.app` loads the Creaseline homepage.
+- [ ] User registration creates a normal shopper account.
+- [ ] Admin login (`/sign-in` with admin option) admits the seeded administrator.
+- [ ] Vehicle listings render authentic cached `.webp` images directly from CDN.
+- [ ] Direct purchase decrements stock by 1 atomically and creates a purchase record.
+- [ ] Cart drawer opens, adds stocked lines, and completes checkout atomically.
+- [ ] Direct URL refresh on `/catalogue`, `/cart`, and `/admin` resolves cleanly without 404.
+
 ## Licensing, Legal, and Asset Caveats
 
 ### 1. Vehicle Dataset Licensing (Commercial Release Blocker)
