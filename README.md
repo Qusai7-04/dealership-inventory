@@ -42,6 +42,7 @@ Run `npm install` once from the repository root. The root npm workspace then pro
 
 | Command | Purpose |
 |---|---|
+| `docker compose up --build` | **Primary one-command startup:** build and run PostgreSQL, Backend, and Frontend stack |
 | `npm test` | Run all backend unit and PostgreSQL integration tests |
 | `npm run test:frontend` | Run the frontend Vitest/Testing Library suite |
 | `npm run build` | Build the backend and frontend |
@@ -57,6 +58,75 @@ Run `npm install` once from the repository root. The root npm workspace then pro
 | `npm start` | Start the compiled backend |
 
 The frontend development server proxies `/api`, `/health`, and `/images` to `http://localhost:3000`. It communicates with PostgreSQL only through the backend HTTP API. Set the optional public `VITE_API_BASE_URL` only when the API is hosted on another origin; no server secret may use a `VITE_*` name.
+
+## One-Command Local Startup (Docker Compose)
+
+The complete Creaseline application (PostgreSQL 17, Express/TypeScript backend, and React 19/Vite frontend) builds and runs in a single command using Docker Desktop and Docker Compose.
+
+### Prerequisites
+- **Docker Desktop** installed and running with WSL 2 backend (verified with Docker Engine 29.9.2, Docker Compose v5.6.1).
+- A valid local `.env` file copied from `.env.example` (ensuring `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT=5433`, and `JWT_SECRET` are defined).
+
+### Quick Start: One Command
+
+Open Windows PowerShell, navigate to the repository root, and run:
+
+```powershell
+docker compose up --build
+```
+
+This single command:
+1. Builds the backend and frontend container images using multi-stage Node 22 Alpine containers.
+2. Starts the **PostgreSQL** database service (`dealership-inventory-db`) on container port `5432` mapped to host port `5433`.
+3. Waits for PostgreSQL to become healthy via internal `pg_isready` health check.
+4. Starts the **backend** service (`dealership-inventory-backend`) on port `3000`, running automatic database schema migrations (`npm run migrate`) before launching the API server. Existing vehicle inventory, stock receipts, and user accounts are strictly preserved.
+5. Waits for the backend to become healthy via HTTP `/health` health check.
+6. Starts the **frontend** Vite development server (`dealership-inventory-frontend`) on port `5173`, binding to `0.0.0.0` with proxy routing to `http://backend:3000`.
+
+### Service Addresses and Ports
+
+| Service | Container Name | Internal Port | Host Port / URL | Health Check Endpoint |
+|---|---|---|---|---|
+| **Frontend UI** | `dealership-inventory-frontend` | `5173` | `http://localhost:5173` | `http://localhost:5173/` |
+| **Backend API** | `dealership-inventory-backend` | `3000` | `http://localhost:3000` | `http://localhost:3000/health` (and `/health/db`) |
+| **PostgreSQL** | `dealership-inventory-db` | `5432` | `localhost:5433` | `pg_isready -U dealership_app -d dealership_inventory` |
+
+### Convenient Secondary Commands
+
+- **Start in background (detached mode):**
+  ```powershell
+  docker compose up --build -d
+  ```
+- **Follow live container logs:**
+  ```powershell
+  docker compose logs -f
+  # Or inspect a specific service:
+  docker compose logs -f backend
+  docker compose logs -f frontend
+  docker compose logs -f db
+  ```
+- **Stop containers safely (PRESERVES all database data):**
+  ```powershell
+  docker compose down
+  ```
+  > [!IMPORTANT]
+  > `docker compose down` removes containers and networks while **strictly preserving** the named database volume (`dealershipinventory_postgres_data`). Never run `docker compose down -v` during standard maintenance, as the `-v` flag deletes the persistent volume and stored inventory.
+- **Targeted service rebuilds (e.g. after dependency changes):**
+  ```powershell
+  docker compose build backend
+  docker compose build frontend
+  docker compose up -d --no-deps --build backend
+  ```
+- **Database Backup Considerations:**
+  To backup the running PostgreSQL database data volume:
+  ```powershell
+  docker exec dealership-inventory-db pg_dump -U dealership_app -d dealership_inventory > backup_$(Get-Date -Format "yyyyMMdd_HHmmss").sql
+  ```
+
+### Development Architecture & Hot Reloading
+- **Source Syncing & Hot Reload:** Source directories (`./backend/src` and `./frontend/src`) and static image directories (`./backend/public/images`) are bind-mounted into their respective containers. Any code changes made on Windows host trigger immediate Vite HMR or `tsx watch` reloads inside the containers.
+- **Persistent Asset Storage:** Vehicle images are mounted to `./backend/public/images`. When new vehicle images are added or generated via the Admin console, they persist on the host filesystem across container recreations.
+- **Network & Host Isolation:** The frontend development server proxies `/api`, `/health`, and `/images` to `http://backend:3000` inside the Docker network. The host browser accesses `http://localhost:5173` without encountering Docker-only host resolution or CORS errors.
 
 ## Database overview
 

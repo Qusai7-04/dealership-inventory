@@ -2050,3 +2050,133 @@ The priority order is strict:
 Do not skip ahead to fancy animations while images are still broken or inventory management does not work. Do not declare completion because the app builds. I want a visually compelling website that also works correctly.
 
 [Full prompt preserved in system logs and project history]
+
+### Session: Docker Desktop Diagnostics & One-Command Multi-Container Setup (2026-10-26)
+
+# DOCKER DESKTOP DIAGNOSTICS & ONE-COMMAND MULTI-CONTAINER SETUP
+
+I need you to fix my local Docker Desktop problem first, then configure the Creaseline project so the entire application starts using one command. Work directly in my existing project at C:\PROJECTS\Dealership Inventory.
+
+Part A — Diagnose and fix Docker Desktop first
+I ran these commands in Windows PowerShell:
+docker version
+docker compose version
+The Docker client reports version 29.9.2, and Docker Compose reports version v5.6.1. However, docker version displays the client information and then fails with an HTTP 500 error when contacting the Docker Desktop Linux Engine through the Windows named pipe:
+request returned 500 Internal Server Error for API route and version http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.56/version
+The Compose CLI version command works, but the Docker Engine is not responding correctly. This must be investigated before attempting to build or run any containers.
+Do not immediately reinstall Docker or reset anything. Diagnose the underlying problem and use the least destructive correction first.
+
+A1. Collect diagnostics
+Run these commands in PowerShell and examine their actual results:
+docker desktop status
+docker version
+docker context show
+docker context ls
+docker desktop engine ls
+wsl --status
+wsl --list --verbose
+Get-Service com.docker.service -ErrorAction SilentlyContinue
+Inspect whether DOCKER_HOST or DOCKER_CONTEXT environment variables override the intended local Docker Desktop configuration. Do not print or expose secrets while doing this.
+Check which Docker context should be used for the local Docker Desktop Linux Engine. Do not switch to a remote engine or blindly change context. If the current context is incorrect, identify the correct local context from the actual command output before changing it.
+Check whether Docker Desktop is stopped, stuck starting, running with a broken backend, in Windows-container mode, or experiencing a WSL integration problem.
+
+A2. Try safe recovery in order
+First, if Docker Desktop is stopped, use the supported Docker Desktop CLI to start it:
+docker desktop start
+Wait for startup to finish, then check:
+docker desktop status
+docker version
+If Docker Desktop claims to be running but the engine continues returning HTTP 500, inspect the relevant local Docker Desktop logs. Use docker desktop logs --priority 2 if supported by this installed CLI. Alternatively, examine the relevant Windows WSL backend log under %LOCALAPPDATA%\Docker\log\vm\init.log and other relevant local logs. Do not output credentials or sensitive environment values in reports.
+If the diagnostics indicate Docker Desktop is stuck, try the supported normal restart:
+docker desktop restart
+After restarting, verify that docker version shows both Client and Server information without an error. Do not attempt to start the project containers before the Docker Engine is working.
+If a normal restart fails and evidence points to a stuck WSL backend, inspect the WSL state first. wsl --shutdown stops running WSL distributions and their processes; it does not unregister the distributions, but it interrupts their work. Before running it, check whether other WSL distributions are active and whether interrupting them could lose unsaved work. Explain this impact and request my approval before shutting down active WSL workloads. If no active WSL work is affected and permission is available, use the least disruptive applicable recovery and reopen Docker Desktop afterwards.
+Do not blindly switch container modes, reinstall Docker, reset Docker Desktop to factory defaults, unregister a WSL distribution, delete Docker's data directories, prune volumes or perform destructive cleanup.
+Do not run docker compose down -v, docker system prune, docker volume prune or any command that could delete existing PostgreSQL data.
+
+Part B — Configure Creaseline to start completely with one command
+Once Docker Engine is healthy, inspect the actual repository. Read AGENTS.md, root package.json, the backend and frontend workspace package files, the existing Compose configuration, Dockerfiles, .dockerignore, .env.example, migrations, database initialization scripts, Vite configuration, backend server, image paths and README.
+The final objective is for me to open PowerShell, enter the project directory and run one command:
+docker compose up --build
+That one command must build and start the entire local application, including:
+PostgreSQL.
+The Express/TypeScript backend.
+The React/Vite frontend.
+Do not tell me to open additional terminals or run the frontend and backend with separate npm run dev commands. Make the one-command workflow genuinely work.
+
+B1. Inspect and preserve the current database
+The project already has a local PostgreSQL database with seeded vehicle inventory and related records. The existing environment was configured around PostgreSQL host port 5433, so preserve this configuration if it still matches the actual Compose file and database setup.
+Inspect the current service name, Compose project name, named volume and database configuration before changing anything. Preserve the existing database volume and existing inventory. Do not accidentally create a fresh empty database by changing the Compose project identity, service naming or volume mapping unnecessarily.
+Inside Docker, the backend must connect to PostgreSQL using the database service hostname and internal PostgreSQL port 5432; it must not use localhost from inside the backend container. The Windows host connection should continue to use the correct configured host port, normally 5433 if that is the existing mapping.
+Preserve working database usernames, passwords and database names from the local configuration. Do not print secret values. Do not rewrite .env simply to fit an example from the internet.
+
+B2. Build an appropriate Docker Compose development setup
+Use the existing npm workspaces and lockfile correctly. Prefer maintainable Dockerfiles, sensible .dockerignore rules and a development workflow that supports hot reload or source syncing.
+The backend container must have its correct working directory, dependencies, source files and migrations. It should listen on 0.0.0.0 inside the container so Docker can reach it.
+The frontend's Vite development server must also bind to 0.0.0.0 and expose the appropriate host port.
+Make sure the browser-facing API URL works from Windows. Do not set the browser's API base URL to a Docker-only hostname such as http://backend:3000; that hostname is available to containers, not necessarily to the browser on the host. Use the existing API client and Vite proxy configuration to select a correct local development arrangement.
+Preserve the existing ports if possible. Verify the actual ports from the code and configuration before deciding on final service URLs.
+
+B3. Start services in the correct order
+Configure health checks and dependencies properly:
+PostgreSQL must be healthy before migrations start.
+Migrations must finish successfully before the backend starts accepting requests.
+The frontend should start with a usable backend URL.
+If a required environment variable or migration is missing or fails, show a clear error rather than pretending the application is ready.
+Use the project's actual migration runner. It must be safe to run again because completed migrations are tracked. Do not invent a new migration command if the repository already has one.
+Keep schema migration separate from catalogue and image seeding. Do not automatically truncate, recreate, reset or overwrite existing inventory, stock quantities, receipts, users or purchase history. Do not automatically create or reset administrator accounts.
+Only consider initial vehicle seeding if the existing database is empty and the idempotent behavior of the current seeder has been verified. Do not change quantities or receipts when the seed command is run a second time.
+Do not call CarImage.dev, generate images or consume image credits during ordinary Docker startup. The existing cached vehicle images must continue to work.
+
+B4. Preserve images and secrets
+Keep all legitimate cached image assets and the image manifest available in the running backend container. Configure image persistence appropriately for local development. If an admin generates a new image, it should not disappear simply because a container is recreated.
+Preserve the existing backend/public/images/vehicles/ structure or the correct actual path found in the repository. Test that the backend serves real image files and that the frontend resolves their URLs correctly.
+Keep PostgreSQL credentials, JWT_SECRET and CAR_IMAGE_API_KEY out of Git, frontend variables, Vite bundles, image layers and logs. Pass any required server-side environment variables to the backend securely without baking .env into an image. Use .dockerignore to exclude .env, .git, node_modules, logs, and local build artifacts where appropriate, while retaining source, migrations and required image assets.
+Do not change the actual API key or expose its contents.
+
+B5. Make the one-command run workflow real
+The main documented startup command must be:
+docker compose up --build
+It should build and start the complete stack in one invocation, with logs visible so I can diagnose startup errors.
+The setup must not depend on me starting Docker containers manually in a specific sequence.
+Once started, verify the actual frontend and backend URLs from the configuration. The existing application is expected to use frontend port 5173 and backend port 3000 if those values are still correct. Confirm the backend health endpoint, expected to be /health, before documenting it.
+Document these convenient secondary commands only after verifying that they work:
+docker compose up --build -d to start in the background.
+docker compose logs -f to follow logs.
+docker compose down to stop and remove containers while preserving database data.
+A targeted rebuild command when frontend/backend dependencies change.
+Do not use docker compose down -v for normal stopping.
+
+B6. Test the entire setup
+Once Docker Engine is healthy, execute and verify the actual Compose workflow. Do not stop after merely editing YAML.
+Check at least:
+docker compose config
+Docker image builds.
+PostgreSQL health.
+Migration completion and status.
+Backend health check.
+Frontend HTTP response.
+Frontend-to-backend communication.
+Correct sign-in and authentication behavior.
+Correct image URL handling and local fallback.
+Existing inventory remaining intact after container recreation.
+Logs free from startup errors and accidental secret output.
+Run the existing backend tests, frontend tests, production build and dependency audit as appropriate. Preserve the dedicated integration-test database safeguards; test runs must not fall back to the development or production database.
+If the environment does not allow you to start or inspect Docker Desktop, report which checks could not be performed. Do not claim the one-command setup works until you have actually executed it successfully.
+
+B7. Documentation and final report
+Update the README with the actual verified one-command startup process, prerequisites, service addresses, ports, environment requirements, health checks, migration behavior, image persistence, logs, testing, stop/restart commands, and database backup considerations.
+Make it clear that docker compose down preserves the named database volume and that removing the volume would delete its stored data.
+Preserve all existing code, data and TDD history. Follow the repository's AGENTS.md and existing TDD instructions for genuine code/configuration fixes. Do not squash, reset, amend, rebase, force-push, push to GitHub or deploy to Render.
+Append this complete prompt to PROMPTS.md if it is not already present, preserving the older entries.
+At the end, report:
+The actual cause of the Docker Engine HTTP 500 error.
+The exact recovery steps performed and their results.
+Whether docker version now succeeds.
+The Compose service names and actual port mappings.
+The exact files changed.
+Whether PostgreSQL and its existing data were preserved.
+The actual tests and Docker commands executed.
+Whether docker compose up --build starts all three services without extra manual steps.
+Any remaining blockers and the precise next actions needed.
+Do the diagnosis and implementation in the current task. Do not just give me a list of commands to run if you can safely run the diagnostic commands yourself. Ask before disruptive system operations or anything that might risk existing database data. Never claim success without the corresponding command output.

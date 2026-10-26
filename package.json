@@ -23,7 +23,11 @@
     "db:create-admin": "npm run db:create-admin --workspace backend",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:logs": "docker compose logs -f db"
+    "db:logs": "docker compose logs -f db",
+    "docker:up": "docker compose up --build",
+    "docker:up:d": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"
