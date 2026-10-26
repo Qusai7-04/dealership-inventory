@@ -19,9 +19,13 @@ describe('connected workflow pages', () => {
   beforeEach(() => { for (const method of Object.values(mocks.api)) method.mockReset(); });
 
   it('synchronizes submitted catalogue filters and resets to page one', async () => {
-    mocks.api.get.mockImplementation((path: string) => Promise.resolve(path === '/api/vehicle-categories'
-      ? { categories: [{ id: 1, name: 'Sedan' }] }
-      : { vehicles: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 } }));
+    mocks.api.get.mockImplementation((path: string) => Promise.resolve(
+      path === '/api/vehicle-categories'
+        ? { categories: [{ id: 1, name: 'Sedan' }] }
+        : path === '/api/vehicles/summary'
+          ? { summary: { activeStockLines: 0, inStockLines: 0, lowStockLines: 0, outOfStockLines: 0, totalUnits: 0 } }
+          : { vehicles: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 } }
+    ));
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/vehicles?page=4']}><CataloguePage /></MemoryRouter>);
     await screen.findByText(/no vehicles match/i);
@@ -73,6 +77,9 @@ describe('connected workflow pages', () => {
       },
     ];
     mocks.api.get.mockImplementation((path: string) => {
+      if (path === '/api/vehicles/summary') {
+        return Promise.resolve({ summary: { activeStockLines: 35, inStockLines: 27, lowStockLines: 3, outOfStockLines: 8, totalUnits: 74 } });
+      }
       if (path.includes('/api/vehicles')) {
         return Promise.resolve({ vehicles: featuredVehicles, pagination: { total: 35, page: 1, limit: 6, totalPages: 6 } });
       }
@@ -88,4 +95,45 @@ describe('connected workflow pages', () => {
     expect(await screen.findByText(/bay-window exposé/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /inspect porsche 911 carrera/i })).toBeInTheDocument();
   });
+
+  it('shows an actually empty catalogue instead of invented demo stock counts', async () => {
+    const emptySummary = { activeStockLines: 0, inStockLines: 0, lowStockLines: 0, outOfStockLines: 0, totalUnits: 0 };
+    mocks.api.get.mockImplementation((path: string) => Promise.resolve(
+      path === '/api/vehicle-categories'
+        ? { categories: [] }
+        : path === '/api/vehicles/summary'
+          ? { summary: emptySummary }
+          : { vehicles: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 } }
+    ));
+
+    render(<MemoryRouter initialEntries={['/vehicles']}><CataloguePage /></MemoryRouter>);
+
+    expect(await screen.findByText(/catalogue is empty/i)).toBeInTheDocument();
+    expect(screen.getByText('0', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('35', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('27', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('03', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('08', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText(/try clearing your filters/i)).not.toBeInTheDocument();
+  });
+
+  it('shows zero live homepage inventory metrics when the database is empty', async () => {
+    const emptySummary = { activeStockLines: 0, inStockLines: 0, lowStockLines: 0, outOfStockLines: 0, totalUnits: 0 };
+    mocks.api.get.mockImplementation((path: string) => Promise.resolve(
+      path === '/api/vehicles/summary'
+        ? { summary: emptySummary }
+        : path === '/api/vehicle-categories'
+          ? { categories: [] }
+          : { vehicles: [], pagination: { page: 1, limit: 6, total: 0, totalPages: 0 } }
+    ));
+
+    render(<MemoryRouter initialEntries={['/']}><HomePage /></MemoryRouter>);
+
+    expect(await screen.findByText('0 ACTIVE')).toBeInTheDocument();
+    expect(screen.getByText('0 ON FLOOR')).toBeInTheDocument();
+    expect(screen.getByText('00 CRITICAL')).toBeInTheDocument();
+    expect(screen.getByText('Explore All 0 Chassis')).toBeInTheDocument();
+  });
+
+
 });
