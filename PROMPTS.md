@@ -2253,3 +2253,14 @@ There is already an unnecessary branch and pull request created for the previous
 The branch contains work that needs to be brought into main, then the second branch and its pull request must be cleaned up. Do not create another branch, a worktree, or another pull request. Keep working directly on main.
 
 (Transferred commits d082ec8, 06b7bd8, 640c746, 5e0f7d3 linearly to main, added populated filter test fix and auth-flow mock fix, verified all 126 backend tests and 36 frontend tests pass, verified production build, removed fix branch, and updated docs).
+
+### Session: Production Database Setup & Catalogue Verification for Neon (2026-10-26)
+
+okay now i want you to fix the production database setup for creaseline properly. local docker is working perfectly but the vercel deployment is not behaving properly. I want you to work directly on my existing main branch and use the current project, dont create another branch or pull request and dont start the deployment from scratch.
+
+project location is `C:\PROJECTS\Dealership Inventory`
+github repo is `https://github.com/Qusai7-04/dealership-inventory`
+
+The most important thing here is that i have two different databases, my local postgres running through docker and the production Neon PostgreSQL database used by the deployed backend. Do not confuse these two or accidentally run production commands against localhost:5433. My intended deployed catalogue is the existing 35 vehicle showroom dataset in `backend/data/vehicles.seed.json`, unless the current database and setup files prove that a different catalogue has already been deliberately configured.
+
+First inspect the complete relevant code and configuration, including `.env`, `.env.example`, `.gitignore`, `backend/src/db.ts`, `backend/src/migrate.ts`, all the migration files, the vehicle seeder, the cached image seeder, `backend/src/scripts/create-admin.ts`, the catalogue data files, image manifest, README and the current Vercel configuration. Do not print or copy any actual secrets to the terminal output, PROMPTS.md, README, GitHub or logs.
