@@ -2220,3 +2220,22 @@ Diagnose and fix the actual production image issue. First inspect the two URLs /
 Prefer serving the cached images from the frontend's own static origin, because the files are bundled in frontend/public/images/vehicles/. Update the image URL helper so relative /images/... paths resolve to the frontend origin, while VITE_API_BASE_URL remains dedicated to API requests. Preserve valid absolute URLs and ensure missing images fall back correctly. Do not blindly change all API URLs or CORS settings to fix an asset-path problem.
 Add regression tests for relative image paths, absolute image URLs, deployed frontend asset URLs and API URL separation. Verify that the expected WebP files actually exist and are included in the frontend deployment output. Run the frontend tests and production build. Preserve existing TDD history, commit the fix appropriately, and do not call CarImage.dev or consume image credits.
 Do not push or deploy automatically. Report the actual cause and the exact commit I should publish to trigger a Vercel frontend redeployment.
+
+
+## Live inventory counts and empty production catalogue
+
+**User prompt (verbatim):**
+
+> scan the complete code base for this problem and solve it
+
+**Context from supplied screenshots:** The Creaseline storefront advertised 35 chassis and hard-coded stock counts while the live catalogue and admin ledger returned zero vehicles. The source code showed a working 35-vehicle seeder, but seeding is an explicit deployment step and is not run by Vercel automatically. The catalogue page also used `count || fallback`, which incorrectly turned a real count of zero into fabricated values; its summary counts were computed from only the current page.
+
+**Changes made:** Added an authenticated `GET /api/vehicles/summary` endpoint backed by the existing aggregate inventory query. Updated the homepage and catalogue counters to use that database summary; removed hard-coded fallback counts; replaced misleading catalogue messaging with a clear empty-database state; made the admin ledger state that its catalogue is empty and added an empty-table instruction. Added regression tests for shopper access to the aggregate summary and for zero-stock states.
+
+**TDD / implementation commits on review branch:**
+
+- RED tests: `d082ec859d3d274ac1e65a3fb81e95c52da4a2e1`
+- GREEN implementation: `06b7bd88cab2669deb62a6928f4dd7084bc7260f`
+- Test assertion robustness: `640c746020249bf12fb7026b0d714bfd7ee18593`
+
+**Validation note:** This environment does not contain a local checkout or the Neon connection string, so the Node test suites/build and production database seeding have not been run from here. The review branch has been inspected for route ordering, response types, and zero-state handling. Run the project test/build commands before deploying, then seed the intended production catalogue against the same Neon database used by Vercel.

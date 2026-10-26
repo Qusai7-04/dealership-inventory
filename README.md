@@ -706,6 +706,8 @@ npm run db:seed:vehicles --workspace backend
 npm run db:seed:cached-images --workspace backend
 ```
 
+**Important:** Vercel does not automatically run the migration or catalogue seed scripts. If the storefront and admin ledger both show zero vehicles, use the same Neon connection string configured for the backend, confirm migrations are applied, then run exactly one catalogue seed option above. Do not seed repeatedly with different catalogue options unless you intend to mix the datasets. Keep the database password in your local shell or password manager; never commit it or expose it as a `VITE_*` frontend variable.
+
 *Verification:*
 ```powershell
 npm run db:audit-images --workspace backend
