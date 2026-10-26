@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-25T19:23:08.868Z",
+  "updatedAt": "2026-10-26T04:26:40.875Z",
   "images": {
     "honda_amaze_2024.webp": {
       "url": "/images/vehicles/honda_amaze_2024.webp",
@@ -164,6 +164,65 @@
       "fileSizeBytes": 64372,
       "format": "webp",
       "createdAt": "2026-10-25T19:23:08.868Z"
+    },
+    "toyota_glanza_2024.webp": {
+      "url": "/images/vehicles/toyota_glanza_2024.webp",
+      "make": "Toyota",
+      "model": "Glanza",
+      "year": 2024,
+      "view": "front-3-4",
+      "resolvedVehicleId": "veh_ew8dz7a1d873y",
+      "source": "carimage.dev",
+      "fileSizeBytes": 55580,
+      "format": "webp",
+      "createdAt": "2026-10-26T04:25:44.324Z"
+    },
+    "volkswagen_taigun_2024.webp": {
+      "url": "/images/vehicles/volkswagen_taigun_2024.webp",
+      "make": "Volkswagen",
+      "model": "Taigun",
+      "year": 2024,
+      "view": "front-3-4",
+      "resolvedVehicleId": "veh_4212v6wbnbap6",
+      "source": "carimage.dev",
+      "fileSizeBytes": 63774,
+      "format": "webp",
+      "createdAt": "2026-10-26T04:26:12.987Z"
+    },
+    "skoda_kushaq_2024.webp": {
+      "url": "/images/vehicles/skoda_kushaq_2024.webp",
+      "make": "Skoda",
+      "model": "Kushaq",
+      "year": 2024,
+      "view": "front-3-4",
+      "source": "carimage.dev",
+      "fileSizeBytes": 63884,
+      "format": "webp",
+      "createdAt": "2026-10-26T04:26:30.921Z"
+    },
+    "renault_kiger_2024.webp": {
+      "url": "/images/vehicles/renault_kiger_2024.webp",
+      "make": "Renault",
+      "model": "Kiger",
+      "year": 2024,
+      "view": "front-3-4",
+      "resolvedVehicleId": "veh_8pmp8m3jcvpb4",
+      "source": "carimage.dev",
+      "fileSizeBytes": 57898,
+      "format": "webp",
+      "createdAt": "2026-10-26T04:26:31.220Z"
+    },
+    "maruti_suzuki_baleno_2024.webp": {
+      "url": "/images/vehicles/maruti_suzuki_baleno_2024.webp",
+      "make": "Maruti Suzuki",
+      "model": "Baleno",
+      "year": 2024,
+      "view": "front-3-4",
+      "resolvedVehicleId": "veh_333y2n8hrahsn",
+      "source": "carimage.dev",
+      "fileSizeBytes": 61706,
+      "format": "webp",
+      "createdAt": "2026-10-26T04:26:40.875Z"
     }
   }
 }
