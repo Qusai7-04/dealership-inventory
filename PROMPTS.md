@@ -2239,3 +2239,17 @@ Do not push or deploy automatically. Report the actual cause and the exact commi
 - Test assertion robustness: `640c746020249bf12fb7026b0d714bfd7ee18593`
 
 **Validation note:** This environment does not contain a local checkout or the Neon connection string, so the Node test suites/build and production database seeding have not been run from here. The review branch has been inspected for route ordering, response types, and zero-state handling. Run the project test/build commands before deploying, then seed the intended production catalogue against the same Neon database used by Vercel.
+
+### Session: Integrate Inventory Summary & Empty Catalogue Fix into Main (2026-10-26)
+
+I dont want a separate branch for this. Work on the existing main branch only and integrate the inventory fix directly into main. I want you to finish the actual problem, not just change the UI to hide it.
+
+My project is located at `C:\PROJECTS\Dealership Inventory` and the GitHub repository is `https://github.com/Qusai7-04/dealership-inventory`.
+
+There is already an unnecessary branch and pull request created for the previous fix:
+- Branch: `fix/live-inventory-counts-empty-catalogue`
+- Pull request: `https://github.com/Qusai7-04/dealership-inventory/pull/1`
+
+The branch contains work that needs to be brought into main, then the second branch and its pull request must be cleaned up. Do not create another branch, a worktree, or another pull request. Keep working directly on main.
+
+(Transferred commits d082ec8, 06b7bd8, 640c746, 5e0f7d3 linearly to main, added populated filter test fix and auth-flow mock fix, verified all 126 backend tests and 36 frontend tests pass, verified production build, removed fix branch, and updated docs).
