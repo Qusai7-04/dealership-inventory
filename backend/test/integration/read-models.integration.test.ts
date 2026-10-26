@@ -90,4 +90,28 @@ describe('frontend read models', () => {
     }));
     expect(response.body.summary.lowStockLines).toBeGreaterThanOrEqual(1);
   });
+
+  it('lets authenticated shoppers read aggregate inventory counts without admin privileges', async () => {
+    await request(app).get('/api/vehicles/summary').expect(401);
+
+    const shopperSummary = await request(app)
+      .get('/api/vehicles/summary')
+      .set(auth(userId))
+      .expect(200);
+    const adminSummary = await request(app)
+      .get('/api/admin/inventory-summary')
+      .set(auth(adminId))
+      .expect(200);
+
+    expect(shopperSummary.body).toEqual(adminSummary.body);
+    expect(shopperSummary.body.summary).toEqual(expect.objectContaining({
+      activeStockLines: expect.any(Number),
+      inStockLines: expect.any(Number),
+      lowStockLines: expect.any(Number),
+      outOfStockLines: expect.any(Number),
+      totalUnits: expect.any(Number),
+    }));
+  });
+
+
 });
