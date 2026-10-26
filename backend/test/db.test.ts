@@ -60,4 +60,47 @@ describe('Database Connection Module', () => {
     await expect(closePool()).resolves.not.toThrow();
     expect(mockEnd).toHaveBeenCalled();
   });
+
+  it('configures SSL and serverless pool sizing for Neon databases', async () => {
+    const { getPoolConfig } = await import('../src/db.js');
+    const origEnv = process.env.DATABASE_URL;
+    const origNodeEnv = process.env.NODE_ENV;
+    const origVercel = process.env.VERCEL;
+
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.DATABASE_URL = 'postgresql://user:pass@ep-cool-fog-12345-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
+      process.env.VERCEL = '1';
+
+      const config = getPoolConfig();
+      expect(config.connectionString).toBe(process.env.DATABASE_URL);
+      expect(config.ssl).toEqual({ rejectUnauthorized: false });
+      expect(config.max).toBe(3);
+      expect(config.idleTimeoutMillis).toBe(30000);
+      expect(config.connectionTimeoutMillis).toBe(5000);
+    } finally {
+      process.env.DATABASE_URL = origEnv;
+      process.env.NODE_ENV = origNodeEnv;
+      if (origVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = origVercel;
+    }
+  });
+
+  it('keeps ssl undefined for standard local postgres connection strings', async () => {
+    const { getPoolConfig } = await import('../src/db.js');
+    const origEnv = process.env.DATABASE_URL;
+    const origNodeEnv = process.env.NODE_ENV;
+
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.DATABASE_URL = 'postgres://dealership_app:secret@localhost:5432/dealership_inventory';
+
+      const config = getPoolConfig();
+      expect(config.ssl).toBeUndefined();
+      expect(config.max).toBe(10);
+    } finally {
+      process.env.DATABASE_URL = origEnv;
+      process.env.NODE_ENV = origNodeEnv;
+    }
+  });
 });
+
