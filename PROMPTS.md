@@ -2212,3 +2212,11 @@ Run the complete relevant backend and frontend tests, production builds, depende
 Append this prompt verbatim to PROMPTS.md if it is not already included. At the end, give me the exact step-by-step Vercel dashboard and Neon setup instructions, actual project roots, build commands, output directories, required environment variable names, migration and safe fictional demo seeding steps, URL/CORS configuration, and final smoke-test checklist.
 
 Do not state that a Vercel deployment has been tested until it has actually been deployed and verified. Finish with a clean, reviewed working tree and make no remote deployment changes.
+
+### Session: Fix Production Vehicle Image URL Helper for Frontend CDN (2026-10-26)
+
+The deployed frontend at https://creaseline-frontend.vercel.app/ loads, but vehicle images are missing. I inspected the published code and found that frontend/src/api/urls.ts prefixes relative image paths with VITE_API_BASE_URL, while the cached images are also included under frontend/public/images/vehicles/.
+Diagnose and fix the actual production image issue. First inspect the two URLs /images/vehicles/honda_city_2024.webp on the frontend and backend deployments, the current Vercel environment variables, the frontend image manifest, VehicleImage.tsx, all API-returned image URL shapes, and both Vercel configurations.
+Prefer serving the cached images from the frontend's own static origin, because the files are bundled in frontend/public/images/vehicles/. Update the image URL helper so relative /images/... paths resolve to the frontend origin, while VITE_API_BASE_URL remains dedicated to API requests. Preserve valid absolute URLs and ensure missing images fall back correctly. Do not blindly change all API URLs or CORS settings to fix an asset-path problem.
+Add regression tests for relative image paths, absolute image URLs, deployed frontend asset URLs and API URL separation. Verify that the expected WebP files actually exist and are included in the frontend deployment output. Run the frontend tests and production build. Preserve existing TDD history, commit the fix appropriately, and do not call CarImage.dev or consume image credits.
+Do not push or deploy automatically. Report the actual cause and the exact commit I should publish to trigger a Vercel frontend redeployment.
