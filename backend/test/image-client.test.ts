@@ -6,6 +6,7 @@ import {
   CarImageClient,
   buildVehicleAltText,
   seedVehicleImages,
+  seedCachedImages,
 } from '../src/image-client.js';
 
 describe('CarImageClient and Image Seeder', () => {
@@ -333,5 +334,79 @@ describe('CarImageClient and Image Seeder', () => {
       expect(result2.imagesInserted).toBe(0);
       expect(result2.imagesSkipped).toBe(0);
     });
+
+    it('seedCachedImages populates database from pre-cached manifest without external API calls', async () => {
+      const mockManifest = {
+        version: 1,
+        updatedAt: '2026-10-26T00:00:00Z',
+        images: {
+          'honda_city_2024.webp': {
+            url: '/images/vehicles/honda_city_2024.webp',
+            make: 'Honda',
+            model: 'City',
+            year: 2024,
+            view: 'front-3-4',
+            format: 'webp',
+          },
+          'hyundai_creta_2024.webp': {
+            url: '/images/vehicles/hyundai_creta_2024.webp',
+            make: 'Hyundai',
+            model: 'Creta',
+            year: 2024,
+            view: 'front-3-4',
+            format: 'webp',
+          },
+        },
+      };
+
+      const manifestPath = path.join(tempStorageDir, 'manifest.json');
+      fs.writeFileSync(manifestPath, JSON.stringify(mockManifest, null, 2), 'utf8');
+
+      const mockVehicles = [
+        { id: 'v-honda-city', make: 'Honda', model: 'City' },
+        { id: 'v-hyundai-creta', make: 'Hyundai', model: 'Creta' },
+      ];
+
+      const insertedRecords: any[] = [];
+      const mockPool = {
+        query: vi.fn().mockImplementation(async (sql: string, params?: any[]) => {
+          if (sql.includes('SELECT id FROM vehicles')) {
+            const make = params?.[0];
+            const model = params?.[1];
+            const found = mockVehicles.find(
+              (v) => v.make.toLowerCase() === String(make).toLowerCase() && v.model.toLowerCase() === String(model).toLowerCase()
+            );
+            return { rows: found ? [{ id: found.id }] : [] };
+          }
+          if (sql.includes('INSERT INTO vehicle_images')) {
+            insertedRecords.push({
+              vehicleId: params?.[0],
+              url: params?.[1],
+              altText: params?.[2],
+              displayOrder: params?.[3],
+            });
+            return { rowCount: 1 };
+          }
+          return { rows: [] };
+        }),
+      } as any;
+
+      const fetchSpy = vi.fn();
+      global.fetch = fetchSpy;
+
+      const result = await seedCachedImages({
+        pool: mockPool,
+        manifestPath,
+      });
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(result.imagesInserted).toBe(2);
+      expect(result.imagesSkipped).toBe(0);
+      expect(insertedRecords).toHaveLength(2);
+      expect(insertedRecords[0].vehicleId).toBe('v-honda-city');
+      expect(insertedRecords[0].url).toBe('/images/vehicles/honda_city_2024.webp');
+      expect(insertedRecords[0].altText).toBe('2024 Honda City, front three-quarter view');
+    });
   });
 });
+
