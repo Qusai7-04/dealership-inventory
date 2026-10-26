@@ -59,4 +59,26 @@ describe('VehicleImage Component', () => {
 
     expect(screen.getByText('LOT #A1B2C3D4')).toBeInTheDocument();
   });
+
+  it('renders image with frontend static origin even when VITE_API_BASE_URL is configured', () => {
+    const originalApiBase = import.meta.env.VITE_API_BASE_URL;
+    try {
+      import.meta.env.VITE_API_BASE_URL = 'https://creaseline-backend.vercel.app';
+      render(
+        <VehicleImage
+          src="/images/vehicles/honda_city_2024.webp"
+          alt="Honda City Deployed"
+        />
+      );
+      const img = screen.getByRole('img');
+      expect(img).toHaveAttribute('src', '/images/vehicles/honda_city_2024.webp');
+      expect(img.getAttribute('src')).not.toContain('creaseline-backend.vercel.app');
+    } finally {
+      if (originalApiBase === undefined) {
+        delete import.meta.env.VITE_API_BASE_URL;
+      } else {
+        import.meta.env.VITE_API_BASE_URL = originalApiBase;
+      }
+    }
+  });
 });
