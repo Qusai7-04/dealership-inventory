@@ -405,3 +405,81 @@ export async function seedVehicleImages(
 
   return { imagesInserted, imagesSkipped };
 }
+
+export interface SeedCachedImagesOptions {
+  pool?: pg.Pool;
+  manifestPath?: string;
+}
+
+export async function seedCachedImages(
+  options: SeedCachedImagesOptions = {}
+): Promise<SeedImagesResult> {
+  const pool = options.pool ?? getPool();
+
+  let manifestPath = options.manifestPath;
+  if (!manifestPath) {
+    const candidates = [
+      path.resolve(process.cwd(), 'backend/public/images/vehicles/manifest.json'),
+      path.resolve(process.cwd(), 'public/images/vehicles/manifest.json'),
+      path.resolve(__dirname, '../public/images/vehicles/manifest.json'),
+      path.resolve(__dirname, '../../public/images/vehicles/manifest.json'),
+    ];
+    for (const cand of candidates) {
+      if (fs.existsSync(cand)) {
+        manifestPath = cand;
+        break;
+      }
+    }
+  }
+
+  if (!manifestPath || !fs.existsSync(manifestPath)) {
+    throw new Error('Manifest file manifest.json could not be resolved for cached images seeding.');
+  }
+
+  const rawManifest = fs.readFileSync(manifestPath, 'utf8');
+  const manifest = JSON.parse(rawManifest);
+  const images = manifest.images || {};
+
+  let imagesInserted = 0;
+  let imagesSkipped = 0;
+
+  for (const [filename, meta] of Object.entries<any>(images)) {
+    if (!meta.make || !meta.model) {
+      imagesSkipped++;
+      continue;
+    }
+
+    const vehRes = await pool.query<{ id: string }>(
+      `SELECT id FROM vehicles
+       WHERE lower(make) = lower($1) AND lower(model) = lower($2) AND deleted_at IS NULL
+       LIMIT 1`,
+      [meta.make.trim(), meta.model.trim()]
+    );
+
+    if (vehRes.rows.length === 0) {
+      imagesSkipped++;
+      continue;
+    }
+
+    const vehicleId = vehRes.rows[0].id;
+    const url = meta.url || `/images/vehicles/${filename}`;
+    const altText = buildVehicleAltText({
+      make: meta.make,
+      model: meta.model,
+      year: meta.year ? Number(meta.year) : undefined,
+      view: meta.view,
+    });
+
+    await pool.query(
+      `INSERT INTO vehicle_images (vehicle_id, url, alt_text, display_order)
+       VALUES ($1, $2, $3, 0)
+       ON CONFLICT (vehicle_id, display_order) DO UPDATE
+       SET url = EXCLUDED.url, alt_text = EXCLUDED.alt_text`,
+      [vehicleId, url, altText]
+    );
+
+    imagesInserted++;
+  }
+
+  return { imagesInserted, imagesSkipped };
+}
