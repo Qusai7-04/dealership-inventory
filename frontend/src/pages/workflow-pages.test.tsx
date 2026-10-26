@@ -23,7 +23,7 @@ describe('connected workflow pages', () => {
       path === '/api/vehicle-categories'
         ? { categories: [{ id: 1, name: 'Sedan' }] }
         : path === '/api/vehicles/summary'
-          ? { summary: { activeStockLines: 0, inStockLines: 0, lowStockLines: 0, outOfStockLines: 0, totalUnits: 0 } }
+          ? { summary: { activeStockLines: 10, inStockLines: 8, lowStockLines: 2, outOfStockLines: 0, totalUnits: 15 } }
           : { vehicles: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 } }
     ));
     const user = userEvent.setup();
