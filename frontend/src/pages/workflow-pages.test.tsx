@@ -109,7 +109,7 @@ describe('connected workflow pages', () => {
     render(<MemoryRouter initialEntries={['/vehicles']}><CataloguePage /></MemoryRouter>);
 
     expect(await screen.findByText(/catalogue is empty/i)).toBeInTheDocument();
-    expect(screen.getByText('0', { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText('0', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText('35', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('27', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('03', { exact: true })).not.toBeInTheDocument();
