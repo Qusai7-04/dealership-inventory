@@ -4,13 +4,14 @@ import { PageState } from '../components/PageState';
 import { useAuth } from '../features/auth/AuthProvider';
 import { VehicleCard } from '../features/vehicles/VehicleCard';
 import { addVehicleToCart, purchaseVehicle, saveVehicle } from '../features/vehicles/actions';
-import type { Category, VehicleListResponse } from '../types/api';
+import type { Category, InventorySummary, VehicleListResponse } from '../types/api';
 
 export function CataloguePage() {
   const { api } = useAuth();
   const [params, setParams] = useSearchParams();
   const [result, setResult] = useState<VehicleListResponse | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
 
@@ -23,6 +24,7 @@ export function CataloguePage() {
   const load = useCallback(() => {
     setError(null);
     setResult(null);
+    setSummary(null);
     const query = new URLSearchParams(params);
     query.set('page', String(page));
     query.set('limit', '12');
@@ -30,10 +32,12 @@ export function CataloguePage() {
     Promise.all([
       api.get<VehicleListResponse>(`/api/vehicles?${query.toString()}`),
       api.get<{ categories: Category[] }>('/api/vehicle-categories').catch(() => ({ categories: [] })),
+      api.get<{ summary: InventorySummary }>('/api/vehicles/summary'),
     ])
-      .then(([vehicles, catRes]) => {
+      .then(([vehicles, catRes, inventory]) => {
         setResult(vehicles);
         setCategories(catRes.categories);
+        setSummary(inventory.summary);
       })
       .catch((reason) => {
         setError(reason instanceof Error ? reason.message : 'Inventory could not be loaded.');
@@ -78,11 +82,12 @@ export function CataloguePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Calculate live summary stats from returned vehicles
-  const totalOnFloor = result?.pagination.total ?? 0;
-  const inStockCount = result?.vehicles.filter((v) => v.quantity > 0).length ?? 0;
-  const lowStockCount = result?.vehicles.filter((v) => v.quantity > 0 && v.quantity <= v.lowStockThreshold).length ?? 0;
-  const outOfStockCount = result?.vehicles.filter((v) => v.quantity === 0).length ?? 0;
+  // Summary tiles describe complete inventory, not only the current page or active filters.
+  const totalOnFloor = summary?.activeStockLines ?? result?.pagination.total ?? 0;
+  const inStockCount = summary?.inStockLines ?? 0;
+  const lowStockCount = summary?.lowStockLines ?? 0;
+  const outOfStockCount = summary?.outOfStockLines ?? 0;
+  const catalogueIsEmpty = summary !== null && summary.activeStockLines === 0;
 
   return (
     <main className="page min-h-screen bg-paper-base paper-grain py-8 px-4 sm:px-6 lg:px-8">
@@ -113,14 +118,14 @@ export function CataloguePage() {
               <div className="flex flex-col">
                 <span className="font-stamp-badge text-[10px] uppercase text-ink-subtle">Total On Floor</span>
                 <span className="font-price-lg text-headline-md font-bold text-ink-solid">
-                  {totalOnFloor || 35}
+                  {totalOnFloor}
                 </span>
               </div>
               <div className="w-px h-8 bg-ink-solid/20" />
               <div className="flex flex-col">
                 <span className="font-stamp-badge text-[10px] uppercase text-secondary font-bold">Available</span>
                 <span className="font-price-lg text-headline-md font-bold text-ink-solid flex items-center gap-1.5">
-                  {inStockCount || 27}{' '}
+                  {inStockCount}{' '}
                   <span className="text-[10px] px-1.5 py-0.2 rounded bg-live-lime text-ink-solid font-stamp-badge border border-ink-solid font-bold">
                     ACTIVE
                   </span>
@@ -130,14 +135,14 @@ export function CataloguePage() {
               <div className="flex flex-col">
                 <span className="font-stamp-badge text-[10px] uppercase text-attention-orange font-bold">Low Stock</span>
                 <span className="font-price-lg text-headline-md font-bold text-attention-orange">
-                  {lowStockCount || '03'}
+                  {String(lowStockCount).padStart(2, '0')}
                 </span>
               </div>
               <div className="w-px h-8 bg-ink-solid/20" />
               <div className="flex flex-col">
                 <span className="font-stamp-badge text-[10px] uppercase text-alert-red font-bold">Sold Out</span>
                 <span className="font-price-lg text-headline-md font-bold text-ink-subtle">
-                  {outOfStockCount || '08'}
+                  {String(outOfStockCount).padStart(2, '0')}
                 </span>
               </div>
             </div>
@@ -327,7 +332,7 @@ export function CataloguePage() {
                   Sheet {result.pagination.page} of {Math.max(1, result.pagination.totalPages)}
                 </span>
                 <span className="w-1.5 h-1.5 rounded-full bg-live-lime" />
-                <span className="text-secondary font-bold">100% SPEC VERIFIED</span>
+                <span className="text-secondary font-bold">{summary ? `${summary.activeStockLines} ACTIVE RECORDS` : 'LOADING INVENTORY SUMMARY'}</span>
               </div>
             </div>
 
@@ -337,10 +342,10 @@ export function CataloguePage() {
                   <span className="material-symbols-outlined text-3xl text-ink-muted">search_off</span>
                 </div>
                 <h2 className="font-headline-md text-headline-md text-ink-solid font-bold">
-                  No vehicles match your query
+                  {catalogueIsEmpty ? 'The catalogue is empty' : 'No vehicles match your query'}
                 </h2>
                 <p className="font-body-md text-ink-muted mt-2 max-w-md mx-auto">
-                  Try clearing your filters, broadening price thresholds, or searching a different chassis make.
+                  {catalogueIsEmpty ? 'The connected database has no active vehicle records yet. Seed the showroom catalogue or add chassis from the admin console.' : 'Try clearing your filters, broadening price thresholds, or searching a different chassis make.'}
                 </p>
                 <button
                   onClick={() => setParams({ page: '1' })}

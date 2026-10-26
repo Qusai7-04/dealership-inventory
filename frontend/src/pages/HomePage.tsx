@@ -4,7 +4,7 @@ import { useAuth } from '../features/auth/AuthProvider';
 import { VehicleCard, formatPrice } from '../features/vehicles/VehicleCard';
 import { VehicleImage } from '../components/VehicleImage';
 import { addVehicleToCart, purchaseVehicle, saveVehicle } from '../features/vehicles/actions';
-import type { Category, Vehicle, VehicleListResponse } from '../types/api';
+import type { Category, InventorySummary, Vehicle, VehicleListResponse } from '../types/api';
 
 export function HomePage() {
   const { api, user } = useAuth();
@@ -12,6 +12,7 @@ export function HomePage() {
   const [featured, setFeatured] = useState<Vehicle[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [inventorySummary, setInventorySummary] = useState<InventorySummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,6 +23,8 @@ export function HomePage() {
       setLoading(false);
       setFeatured([]);
       setCategories([]);
+      setTotalCount(null);
+      setInventorySummary(null);
       return;
     }
 
@@ -30,12 +33,14 @@ export function HomePage() {
     Promise.all([
       api.get<VehicleListResponse>('/api/vehicles?page=1&limit=6&sort=createdAt&direction=desc'),
       api.get<{ categories: Category[] }>('/api/vehicle-categories').catch(() => ({ categories: [] })),
+      api.get<{ summary: InventorySummary | null }>('/api/vehicles/summary').catch(() => ({ summary: null })),
     ])
-      .then(([res, catRes]) => {
+      .then(([res, catRes, summaryRes]) => {
         if (!active) return;
         setFeatured(res.vehicles ?? []);
         setTotalCount(res.pagination?.total ?? null);
         setCategories(catRes.categories ?? []);
+        setInventorySummary(summaryRes.summary);
       })
       .catch(() => {
         if (!active) return;
@@ -94,7 +99,7 @@ export function HomePage() {
             </h1>
 
             <p className="font-body-lg text-body-lg text-ink-muted max-w-xl mb-8 leading-relaxed">
-              Every vehicle on our floor is physically verified, catalogued, and ready for immediate single-click acquisition. Keep the printed receipt.
+              Browse current listings, compare vehicle specifications, and check live stock availability before your next acquisition.
             </p>
 
             {/* Quick Search Motor Register Card */}
@@ -190,18 +195,18 @@ export function HomePage() {
               <div className="w-full max-w-md bg-paper-surface border-[1.5px] border-ink-solid rounded-2xl p-6 shadow-[0_6px_0_#16150F] rotate-1">
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-stamp-badge text-stamp-badge px-2.5 py-0.5 rounded-full bg-live-lime text-ink-solid border border-ink-solid font-bold">
-                    ATELIER SPOTLIGHT
+                    {inventorySummary?.activeStockLines === 0 ? 'CATALOGUE EMPTY' : 'ATELIER SPOTLIGHT'}
                   </span>
-                  <span className="font-data-mono text-stamp-badge text-ink-muted">CHASSIS #0109</span>
+                  <span className="font-data-mono text-stamp-badge text-ink-muted">LIVE INVENTORY</span>
                 </div>
                 <div className="w-full h-48 bg-paper-recessed rounded-xl border border-ink-solid flex items-center justify-center mb-3">
                   <span className="material-symbols-outlined text-4xl text-ink-muted">garage</span>
                 </div>
                 <h3 className="font-headline-sm text-headline-sm font-bold text-ink-solid mb-1">
-                  Creaseline Motor Registry
+                  {inventorySummary?.activeStockLines === 0 ? 'No live chassis yet' : 'Creaseline Motor Registry'}
                 </h3>
                 <p className="font-body-sm text-body-sm text-ink-muted">
-                  Physical specification sheets catalogued daily on the showroom floor.
+                  {inventorySummary?.activeStockLines === 0 ? 'The connected inventory database has no active vehicle records. Seed the catalogue or register a chassis in the admin console.' : 'Live vehicle specification sheets appear here when listings are available.'}
                 </p>
               </div>
             )}
@@ -219,9 +224,9 @@ export function HomePage() {
             <div>
               <span className="font-stamp-badge text-stamp-badge text-ink-subtle uppercase">MODELS CATALOGUED</span>
               <div className="font-price-lg text-headline-md font-bold text-ink-solid">
-                {totalCount !== null ? `${totalCount} ACTIVE` : '35 ACTIVE'}
+                {inventorySummary ? `${inventorySummary.activeStockLines} ACTIVE` : totalCount !== null ? `${totalCount} ACTIVE` : '—'}
               </div>
-              <p className="font-data-mono text-[11px] text-ink-muted mt-0.5">100% physically inspected & dyno certified</p>
+              <p className="font-data-mono text-[11px] text-ink-muted mt-0.5">Live records from the connected inventory database</p>
             </div>
           </div>
 
@@ -231,7 +236,7 @@ export function HomePage() {
             </div>
             <div>
               <span className="font-stamp-badge text-stamp-badge text-ink-subtle uppercase">PHYSICAL STOCK UNITS</span>
-              <div className="font-price-lg text-headline-md font-bold text-action-blue">27 ON FLOOR</div>
+              <div className="font-price-lg text-headline-md font-bold text-action-blue">{inventorySummary ? `${inventorySummary.totalUnits} ON FLOOR` : '—'}</div>
               <p className="font-data-mono text-[11px] text-ink-muted mt-0.5">Floor ready for immediate courier dispatch</p>
             </div>
           </div>
@@ -242,7 +247,7 @@ export function HomePage() {
             </div>
             <div>
               <span className="font-stamp-badge text-stamp-badge text-attention-orange uppercase">LOW STOCK THRESHOLD</span>
-              <div className="font-price-lg text-headline-md font-bold text-attention-orange">03 CRITICAL</div>
+              <div className="font-price-lg text-headline-md font-bold text-attention-orange">{inventorySummary ? `${String(inventorySummary.lowStockLines).padStart(2, '0')} CRITICAL` : '—'}</div>
               <p className="font-data-mono text-[11px] text-ink-muted mt-0.5">Allocation priority held for 15-minute escrow</p>
             </div>
           </div>
@@ -268,7 +273,7 @@ export function HomePage() {
               to="/vehicles"
               className="px-4 py-2 bg-paper-surface hover:bg-paper-recessed text-ink-solid font-label-nav text-body-sm font-semibold rounded-lg border-[1.5px] border-ink-solid shadow-[0_2px_0_#16150F] active:translate-y-0.5 transition-all flex items-center gap-1.5 self-start sm:self-auto"
             >
-              <span>Explore All 35 Chassis</span>
+              <span>{inventorySummary ? `Explore All ${inventorySummary.activeStockLines} Chassis` : 'Explore The Floor'}</span>
               <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
             </Link>
           </div>
@@ -306,7 +311,7 @@ export function HomePage() {
           ) : featured.length === 0 ? (
             <div className="p-12 text-center bg-paper-surface border-[1.5px] border-dashed border-ink-solid rounded-xl">
               <h3 className="font-headline-sm text-ink-solid font-bold">No active floor listings</h3>
-              <p className="font-body-sm text-ink-muted mt-1">Please check back shortly or access the admin console.</p>
+              <p className="font-body-sm text-ink-muted mt-1">There are no active vehicle records in the connected database. Seed the showroom catalogue or register new chassis from the admin console.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-10">

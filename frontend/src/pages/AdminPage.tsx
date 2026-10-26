@@ -230,7 +230,7 @@ export function AdminPage() {
                 {summary.activeStockLines}
               </div>
               <div className="mt-2 text-stamp-badge font-data-mono text-ink-muted flex items-center gap-1">
-                <span className="text-secondary font-bold">● 100%</span> cataloged
+                {summary.activeStockLines > 0 ? <span className="text-secondary font-bold">● Active catalogue</span> : <span className="text-ink-muted font-bold">● Catalogue empty</span>}
               </div>
             </div>
 
@@ -364,7 +364,15 @@ export function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-solid/20 font-data-mono text-body-sm bg-paper-base">
-                {filteredVehicles.map((vehicle) => (
+                {filteredVehicles.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center font-sans text-sm text-ink-muted">
+                      {vehicles.length === 0
+                        ? 'No vehicles are registered in this database yet. Seed the showroom catalogue or use “+ New Chassis Intake” to add a listing.'
+                        : 'No vehicles match these filters. Adjust the search or select Reset.'}
+                    </td>
+                  </tr>
+                ) : filteredVehicles.map((vehicle) => (
                   <tr key={vehicle.id} className="hover:bg-paper-surface/60 transition-colors">
                     <td className="py-3 px-4 w-28">
                       <div className="w-24 h-14 rounded overflow-hidden border border-ink-solid bg-paper-surface">

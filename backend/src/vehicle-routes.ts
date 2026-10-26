@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate, requireRole } from './auth.js';
 import { createVehicle, deleteVehicle, generateVehicleImage, getVehicle, listVehicles, restockVehicle, updateVehicle } from './vehicle-service.js';
 import { directPurchase } from './purchase-service.js';
-import { listStockReceipts } from './read-model-service.js';
+import { inventorySummary, listStockReceipts } from './read-model-service.js';
 
 const router = Router();
 const admin = [authenticate, requireRole('admin')];
@@ -12,6 +12,9 @@ router.get('/', authenticate, async (request, response, next) => {
 });
 router.get('/search', authenticate, async (request, response, next) => {
   try { response.json(await listVehicles(request.query)); } catch (error) { next(error); }
+});
+router.get('/summary', authenticate, async (_request, response, next) => {
+  try { response.json(await inventorySummary()); } catch (error) { next(error); }
 });
 router.get('/:id', authenticate, async (request, response, next) => {
   try { response.json({ vehicle: await getVehicle(request.params.id as string) }); } catch (error) { next(error); }
