@@ -21,7 +21,16 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
   } else if (origin) {
     const origins = allowedOrigin.split(',').map((o) => o.trim());
-    if (origins.includes(origin)) {
+    const isAllowed = origins.some((pattern) => {
+      if (pattern === origin) return true;
+      if (pattern.includes('*')) {
+        const regexStr = '^' + pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$';
+        return new RegExp(regexStr).test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
     }
